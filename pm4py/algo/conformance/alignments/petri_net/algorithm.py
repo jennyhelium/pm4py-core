@@ -41,6 +41,7 @@ class Variants(Enum):
     VERSION_DIJKSTRA_NO_HEURISTICS = variants.dijkstra_no_heuristics
     VERSION_DIJKSTRA_LESS_MEMORY = variants.dijkstra_less_memory
     VERSION_DISCOUNTED_A_STAR = variants.discounted_a_star
+    VERSION_A_STAR = variants.a_star
 
 class Parameters(Enum):
     PARAM_TRACE_COST_FUNCTION = 'trace_cost_function'
@@ -73,9 +74,10 @@ VERSION_STATE_EQUATION_A_STAR = Variants.VERSION_STATE_EQUATION_A_STAR
 VERSION_DIJKSTRA_NO_HEURISTICS = Variants.VERSION_DIJKSTRA_NO_HEURISTICS
 VERSION_DIJKSTRA_LESS_MEMORY = Variants.VERSION_DIJKSTRA_LESS_MEMORY
 VERSION_DISCOUNTED_A_STAR = Variants.VERSION_DISCOUNTED_A_STAR
+VERSION_A_STAR = Variants.VERSION_A_STAR
 
 VERSIONS = {Variants.VERSION_DIJKSTRA_NO_HEURISTICS, Variants.VERSION_DIJKSTRA_NO_HEURISTICS,
-            Variants.VERSION_DIJKSTRA_LESS_MEMORY,VERSION_DISCOUNTED_A_STAR}
+            Variants.VERSION_DIJKSTRA_LESS_MEMORY,VERSION_DISCOUNTED_A_STAR, VERSION_A_STAR}
 
 
 def __variant_mapper(variant):
@@ -88,6 +90,8 @@ def __variant_mapper(variant):
             variant = Variants.VERSION_DIJKSTRA_NO_HEURISTICS
         elif variant == "Variants.VERSION_DIJKSTRA_LESS_MEMORY":
             variant = Variants.VERSION_DIJKSTRA_LESS_MEMORY
+        elif variant == "Variants.VERSION_A_STAR":
+            variant == Variants.VERSION_A_STAR
 
     return variant
 
