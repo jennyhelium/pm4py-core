@@ -76,7 +76,8 @@ PARAM_MODEL_COST_FUNCTION = Parameters.PARAM_MODEL_COST_FUNCTION.value
 PARAM_SYNC_COST_FUNCTION = Parameters.PARAM_SYNC_COST_FUNCTION.value
 
 
-def get_best_worst_cost(petri_net, initial_marking, final_marking, original_trace = [], heuristic="STATE_EQUATION", parameters=None):
+def get_best_worst_cost(petri_net, initial_marking, final_marking, original_trace=[], heuristic="STATE_EQUATION",
+                        parameters=None):
     """
     Gets the best worst cost of an alignment
 
@@ -98,7 +99,8 @@ def get_best_worst_cost(petri_net, initial_marking, final_marking, original_trac
         parameters = {}
     trace = log_implementation.Trace()
 
-    best_worst = apply(original_trace, trace, petri_net, initial_marking, final_marking, heuristic, parameters=parameters)
+    best_worst = apply(original_trace, trace, petri_net, initial_marking, final_marking, heuristic,
+                       parameters=parameters)
 
     if best_worst is not None:
         return best_worst['cost']
@@ -106,7 +108,8 @@ def get_best_worst_cost(petri_net, initial_marking, final_marking, original_trac
     return None
 
 
-def apply(original_trace, trace: Trace, petri_net: PetriNet, initial_marking: Marking, final_marking: Marking, heuristic, parameters: Optional[Dict[Union[str, Parameters], Any]] = None) -> typing.AlignmentResult:
+def apply(original_trace, trace: Trace, petri_net: PetriNet, initial_marking: Marking, final_marking: Marking,
+          heuristic, parameters: Optional[Dict[Union[str, Parameters], Any]] = None) -> typing.AlignmentResult:
     """
     Performs the basic alignment search, given a trace and a net.
 
@@ -167,7 +170,8 @@ def apply(original_trace, trace: Trace, petri_net: PetriNet, initial_marking: Ma
                                                                                      trace_cost_function,
                                                                                      activity_key=activity_key)
 
-    alignment = apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_im, trace_fm, original_trace,
+    alignment = apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_im, trace_fm,
+                                original_trace,
                                 activity_key, heuristic, parameters)
 
     return alignment
@@ -420,13 +424,19 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, sk
 
 # übergeben welche Heuristik, ob LP oder ILP
 
-def __search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key, trace_net, heuristic="STATE_EQUATION",
-             ret_tuple_as_trans_desc=False,max_align_time_trace=sys.maxsize):
-
+def __search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key, trace_net,
+             heuristic="STATE_EQUATION",
+             ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize):
     if heuristic == "STATE_EQUATION":
         return a_star_search.search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key,
-                                                    ret_tuple_as_trans_desc, max_align_time_trace)
+                                    ret_tuple_as_trans_desc, max_align_time_trace)
 
     elif heuristic == "EXTENDED_STATE_EQUATION":
         return a_star_search.search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, original_trace,
-                                                        activity_key, trace_net, ret_tuple_as_trans_desc, max_align_time_trace)
+                                                        activity_key, trace_net, ret_tuple_as_trans_desc,
+                                                        max_align_time_trace)
+
+    elif heuristic == "NAIVE":
+        return a_star_search.search_naive(sync_net, ini, fin, cost_function, skip, original_trace,
+                                          activity_key, trace_net, ret_tuple_as_trans_desc,
+                                          max_align_time_trace)

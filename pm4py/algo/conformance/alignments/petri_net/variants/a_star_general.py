@@ -113,7 +113,8 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
             h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
                                            incidence_matrix, curr.m,
                                            fin_vec,
-                                           lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                           #lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                           lp_solver.DEFAULT_LP_SOLVER_VARIANT,
                                            use_cvxopt=use_cvxopt)
             lp_solved += 1
 
@@ -216,8 +217,8 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
     # init k for k-based underestimation
     k = 1
 
-    #trace_string = [x[activity_key] for x in trace]
-    #trace_division = [trace_string]
+    # trace_string = [x[activity_key] for x in trace]
+    # trace_division = [trace_string]
     trace_division = [trace]
     explained_events_list = [0]
     max_num_explained = 0
@@ -270,19 +271,6 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
             # else
             # if marking explains a events for k = 1,
             # restart procedure from scratch with k = 2 and sigma = sigma_1 + sigma_2 with |sigma_1| = a
-
-            """
-            # activated transitions are transitions with non-zero occurrences in solution vector x
-            activated_transitions = []
-            for i in range(len(x)):
-                if x[i] > 0:
-                    activated_transitions.append(transitions_sorted[i])
-
-            # explained events in last iteration
-            firing_seq, reach_fm, explained_events = utils.search_path_among_sol(sync_net, ini, fin,
-                                                                                 activated_transitions, skip)
-
-            """
             explained = explained_events(trace_net, current_marking)
 
             # number of newly explained events
@@ -381,8 +369,127 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
             heapq.heappush(open_set, tp)
 
 
+def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, trace_net,
+                 ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, solver=None):
+    print(trace)
+    start_time = time.time()
+
+    # create incidence matrix for sync net
+    decorate_transitions_prepostset(sync_net)
+    decorate_places_preset_trans(sync_net)
+
+    # init set C "closed" which contains already visited markings
+    closed = set()
+
+    # compute heuristic for ini_state
+    # compute underestimate for k = 1, y_a refers to first transition in y_i starting with transition in trace model
+    h = len(trace)
+
+    # Search Tupel (f = g+h, g bisherige Kosten, h Kosten bis final marking, current marking is ini, p parent_state/marking, t ist transistion,wie state erreicht, x Lösung lp trust??)
+    ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, None, True)
+
+    # init priority queue Q, sorted ascending by f = g + h
+    open_set = [ini_state]
+    heapq.heapify(open_set)
+    visited = 0
+    queued = 0
+    traversed = 0
+
+    # ??
+    trans_empty_preset = set(t for t in sync_net.transitions if len(t.in_arcs) == 0)
+
+    # while Q not empty, remove its head and add to collection C "closed" (visited markings)
+    while not len(open_set) == 0:
+        if (time.time() - start_time) > max_align_time_trace:
+            return None
+
+        curr = heapq.heappop(open_set)
+
+        current_marking = curr.m
+
+        # marking with unknown solution vector: original estimate corresp. to unrealizable firing sequence
+        # try to improve underestimate function by increasing k and choose new way to split trace
+        while not curr.trust:
+            if (time.time() - start_time) > max_align_time_trace:
+                return None
+
+            # if marking already visited (in C), get new current marking from queue
+            already_closed = current_marking in closed
+            if already_closed:
+                curr = heapq.heappop(open_set)
+                current_marking = curr.m
+                continue
+
+            # else
+            # if marking explains a events for k = 1,
+            # restart procedure from scratch with k = 2 and sigma = sigma_1 + sigma_2 with |sigma_1| = a
+
+            explained = explained_events(trace_net, current_marking)
+
+            remaining_events = len(trace) - explained
+            # compute exact solution
+            h = remaining_events
+
+            tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, None, True)
+
+            # push new SearchTuple in Q, pop next marking
+            curr = heapq.heappushpop(open_set, tp)
+            current_marking = curr.m
+
+        # max allowed heuristics value (27/10/2019, due to the numerical instability of some of our solvers)
+        if curr.h > lp_solver.MAX_ALLOWED_HEURISTICS:
+            continue
+
+        # 12/10/2019: do it again, since the marking could be changed
+        already_closed = current_marking in closed
+        if already_closed:
+            continue
+
+        # 12/10/2019: the current marking can be equal to the final marking only if the heuristics
+        # (underestimation of the remaining cost) is 0. Low-hanging fruits
+        if curr.h < 0.01:
+            # if head represents final marking: return corresp. alignment by reconstructing
+            if current_marking == fin:
+                return utils.__reconstruct_alignment(curr, visited, queued, traversed,
+                                                     ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
+                                                     lp_solved=0)
+
+        closed.add(current_marking)
+        visited += 1
+
+        # fire each enabled transition and investigate new marking
+        enabled_trans = copy(trans_empty_preset)
+        for p in current_marking:
+            for t in p.ass_trans:
+                if t.sub_marking <= current_marking:
+                    enabled_trans.add(t)
+
+        trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans if not (
+                t is not None and utils.__is_log_move(t, skip) and utils.__is_model_move(t, skip))]
+
+        for t, cost in trans_to_visit_with_cost:
+            traversed += 1
+            new_marking = utils.add_markings(current_marking, t.add_marking)
+
+            # if new marking in C, do nothing.
+            if new_marking in closed:
+                continue
+
+            # if in Q, replace if lower path cost
+            # if nothing exists in Q, insert with path cost and heuristic value
+            g = curr.g + cost
+
+            queued += 1
+            h = len(trace) - explained_events(trace_net, new_marking)
+            new_f = g + h
+
+            tp = utils.SearchTuple(new_f, g, h, new_marking, curr, t, None, False)
+            heapq.heappush(open_set, tp)
+
+
 def compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
-                            marking, fin_vec, variant, trace_division=[], use_cvxopt=False, heuristic="STATE_EQUATION", solver=None,
+                            marking, fin_vec, variant, trace_division=[], use_cvxopt=False, heuristic="STATE_EQUATION",
+                            solver=None,
                             strict=True, k=1):
     if heuristic == "STATE_EQUATION":
         return utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
@@ -420,7 +527,6 @@ def explained_events(trace_net, marking):
 
     for p in marking:
         curr_trace_place = p.name[0]
-        print(curr_trace_place)
 
         if curr_trace_place in places:
             index = places.index(curr_trace_place)
