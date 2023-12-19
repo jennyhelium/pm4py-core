@@ -106,12 +106,13 @@ def apply(obj: Union[EventLog, EventStream, pd.DataFrame, Trace], petri_net: Pet
                          final_marking, parameters=parameters, variant=variant)
 
 
-def apply_trace(trace, petri_net, initial_marking, final_marking, parameters=None,
+def apply_trace(original_trace, trace, petri_net, initial_marking, final_marking, heuristic, parameters=None,
                 variant=DEFAULT_VARIANT):
     """
     apply alignments to a trace
     Parameters
     -----------
+    original_trace
     trace
         :class:`pm4py.log.log.Trace` trace of events
     petri_net
@@ -147,7 +148,7 @@ def apply_trace(trace, petri_net, initial_marking, final_marking, parameters=Non
     best_worst_cost = exec_utils.get_param_value(Parameters.BEST_WORST_COST_INTERNAL, parameters,
                                                  __get_best_worst_cost(petri_net, initial_marking, final_marking, variant, parameters))
 
-    ali = exec_utils.get_variant(variant).apply(trace, petri_net, initial_marking, final_marking,
+    ali = exec_utils.get_variant(variant).apply(original_trace, trace, petri_net, initial_marking, final_marking, heuristic,
                                                  parameters=parameters)
 
     trace_cost_function = exec_utils.get_param_value(Parameters.PARAM_TRACE_COST_FUNCTION, parameters, [])
@@ -232,10 +233,12 @@ def apply_log(log, petri_net, initial_marking, final_marking, parameters=None, v
 
     all_alignments = []
     for trace in one_tr_per_var:
+        t = [x['concept:name'] for x in trace]
+        print(t)
         this_max_align_time = min(max_align_time_case, (max_align_time - (time.time() - start_time)) * 0.5)
         parameters[Parameters.PARAM_MAX_ALIGN_TIME_TRACE] = this_max_align_time
-        all_alignments.append(apply_trace(trace, petri_net, initial_marking, final_marking, parameters=copy(parameters),
-                                          variant=variant))
+        all_alignments.append(apply_trace(t, trace, petri_net, initial_marking, final_marking, heuristic = "EXTENDED_STATE_EQUATION",
+                                          parameters=copy(parameters), variant=variant))
         if progress is not None:
             progress.update()
 
