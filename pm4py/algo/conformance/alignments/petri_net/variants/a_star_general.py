@@ -371,7 +371,6 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
 
 def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, trace_net,
                  ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, solver=None):
-    print(trace)
     start_time = time.time()
 
     # create incidence matrix for sync net
@@ -421,14 +420,15 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
                 continue
 
             # else
-            # if marking explains a events for k = 1,
-            # restart procedure from scratch with k = 2 and sigma = sigma_1 + sigma_2 with |sigma_1| = a
-
             explained = explained_events(trace_net, current_marking)
 
             remaining_events = len(trace) - explained
             # compute exact solution
-            h = remaining_events
+            h = 0
+            for i in range(remaining_events):
+                index = remaining_events - i
+                label = trace[-index]
+                h = h + compute_naive_heuristic(label, sync_net, cost_function)
 
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, None, True)
 
@@ -480,7 +480,17 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
             g = curr.g + cost
 
             queued += 1
-            h = len(trace) - explained_events(trace_net, new_marking)
+            #h = len(trace) - explained_events(trace_net, new_marking)
+
+            explained = explained_events(trace_net, current_marking)
+
+            remaining_events = len(trace) - explained
+
+            h = 0
+            for i in range(remaining_events):
+                index = remaining_events - i
+                label = trace[-index]
+                h = h + compute_naive_heuristic(label, sync_net, cost_function)
             new_f = g + h
 
             tp = utils.SearchTuple(new_f, g, h, new_marking, curr, t, None, False)
@@ -532,3 +542,19 @@ def explained_events(trace_net, marking):
             index = places.index(curr_trace_place)
             return index
     return 0
+
+def compute_naive_heuristic(label, sync_net, cost_function):
+    """
+    Checks if there is a sync transition with label of trace
+    If yes, return cost for sync move (0), else cost for log move (10000)
+    Returns
+    -------
+
+    """
+
+    # ((t_trace.name, t_model.name), (t_trace.label, t_model.label))
+    for t in sync_net.transitions:
+        if label == t.label[1]:
+            #return cost_function[t]
+            return 0
+    return 10000
