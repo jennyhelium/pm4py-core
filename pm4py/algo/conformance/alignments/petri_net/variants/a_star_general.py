@@ -292,15 +292,22 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
                     trace_division.append(split_element)
                     k = k
 
+                elif new_explained == len(split_element):
+                    trace_division.append(split_element)
+                    k = k
+
                 else:
                     split_1 = split_element[:new_explained]
                     split_2 = split_element[new_explained:]
 
                     trace_division.append(split_1)
-                    trace_division.append(split_2)
 
-                    # increase k
-                    k = k + 1
+                    if not len(split_2) == 0:
+                        trace_division.append(split_2)
+                        # increase k
+                        k = k + 1
+                    else:
+                        k = k
 
             # compute exact solution
             h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
