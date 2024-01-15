@@ -113,7 +113,7 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
             h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
                                            incidence_matrix, curr.m,
                                            fin_vec,
-                                           #lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                           # lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
                                            lp_solver.DEFAULT_LP_SOLVER_VARIANT,
                                            use_cvxopt=use_cvxopt)
             lp_solved += 1
@@ -487,7 +487,7 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
             g = curr.g + cost
 
             queued += 1
-            #h = len(trace) - explained_events(trace_net, new_marking)
+            # h = len(trace) - explained_events(trace_net, new_marking)
 
             explained = explained_events(trace_net, current_marking)
 
@@ -514,11 +514,10 @@ def compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incid
                                                            variant,
                                                            use_cvxopt=use_cvxopt)
     elif heuristic == "EXTENDED_STATE_EQUATION":
-        return utils.__compute_exact_extended_state_equation(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
-                                                             incidence_matrix, marking, fin_vec,
-                                                             variant,
-                                                             trace_division,
-                                                             use_cvxopt=use_cvxopt, k=k)
+        return utils.__compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
+                                                                 incidence_matrix, marking, fin_vec, variant,
+                                                                 trace_division, ilp=True,
+                                                                 use_cvxopt=use_cvxopt, k=k)
 
 
 def explained_events(trace_net, marking):
@@ -550,6 +549,7 @@ def explained_events(trace_net, marking):
             return index
     return 0
 
+
 def compute_naive_heuristic(label, sync_net, cost_function):
     """
     Checks if there is a sync transition with label of trace
@@ -562,6 +562,6 @@ def compute_naive_heuristic(label, sync_net, cost_function):
     # ((t_trace.name, t_model.name), (t_trace.label, t_model.label))
     for t in sync_net.transitions:
         if label == t.label[1]:
-            #return cost_function[t]
+            # return cost_function[t]
             return 0
     return 10000

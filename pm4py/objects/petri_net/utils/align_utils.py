@@ -379,12 +379,6 @@ def __compute_exact_extended_state_equation(sync_net, a_matrix, h_cvx, g_matrix,
                                 <= m_matrix + m_a_matrix * x[0] + m_a_matrix * sum_transitions_subsequences_2 +
                                 consumption_matrix * y[a])
 
-        #model.addconstraint(m_matrix + m_a_matrix * x[0] + m_a_matrix * m_sum_transitions_subsequences
-                           # + consumption_matrix * y[a] >= matrix(np.zeros_like(m_vec),  tc='d'))
-        #model.addconstraint(matrix(np.zeros_like(m_vec), tc='d')
-                            #<= m_matrix + m_a_matrix * x[0] + m_a_matrix * m_sum_transitions_subsequences +
-                            #consumption_matrix * y[a])
-
     # c3: x_a is natural number, relax to real value numbers
     for a in range(k + 1):
         model.addconstraint(0 <= x[a])
@@ -434,6 +428,215 @@ def __compute_exact_extended_state_equation(sync_net, a_matrix, h_cvx, g_matrix,
         points_list = []
         for i in range(len_transitions):
             points_list.append(points.value()[i])
+    else:
+        points_list = [0.0] * len_transitions
+
+    return prim_obj, points_list
+
+def check_lp_sol_int(x):
+    for i in range(len(x)):
+        if abs(x[i] - round(x[i])) > 10**(-5):
+            return False
+    return True
+
+def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
+                                            marking, fin_vec, variant, trace_division, ilp=False, use_cvxopt=False, strict=True,
+                                            k=1):
+    # ilp version
+
+    # trace_divison = [substring_1, ..., substring_k]
+
+    # return solution vector z = x_0 + sum ( x_a + y_a )
+    # return estimate h
+    from cvxopt.modeling import op, variable, dot, sum, matrix
+
+    len_transitions = len(incidence_matrix.transitions)
+    len_places = len(incidence_matrix.places)
+
+    # variable y_i refers to firing of single transition at start of each subtrace
+    # in y_i starting with transition in trace model
+    # y_0 possibly empty prefix of transitions of form (t_m, skip)
+
+    # y = np.empty((k, len_transitions))
+
+    y = [0 for i in range(k + 1)]
+
+    for i in range(1, k + 1):
+        y[i] = variable(size=len_transitions, name="y_%s" % i)
+
+    # variable x_i corresponds to any other transitions firing
+
+    # x = np.empty((k+1, len_transitions))
+
+    x = [0 for i in range(k + 1)]
+
+    for i in range(k + 1):
+        x[i] = variable(size=len_transitions, name="x_%s" % i)
+
+    # objective function
+    cost_transp = np.transpose(cost_vec)
+
+    sum_x = x[0]
+    for i in range(1, k + 1):
+        sum_x = sum_x + x[i]
+
+    sum_y = y[1]
+    for i in range(2, k + 1):
+        sum_y = sum_y + y[i]
+
+    # obj = np.dot(cost_transp, np.sum(x.value, axis=0)) + np.dot(cost_transp, np.sum(y.value, axis=0))
+    # dot transposes first input
+    obj = dot(cost_vec, sum_x) + dot(cost_vec, sum_y)
+
+    model = op(obj)
+
+    # c1: marking eq., reach final marking from initial/current after combining all firing transitions of all x_a and y_a
+    # was, wenn mittendrin berechnet wird? Trotzdem von initial marking?
+    m_vec = incidence_matrix.encode_marking(marking)
+    m_vec_2d = [m_vec[i:i + 1] for i in range(0, len(m_vec), 1)]
+    m_matrix = matrix(m_vec_2d, (len_places, 1), tc='d')
+
+    fin_vec_2d = [fin_vec[i:i + 1] for i in range(0, len(fin_vec), 1)]
+    fin_matrix = matrix(fin_vec_2d, (len_places,1), tc='d')
+
+    sums_transitions = x[1] + y[1]
+
+    for i in range(2, k + 1):
+        sums_transitions = sums_transitions + x[i] + y[i]
+    #op.addconstraint(m_matrix + matrix(a_matrix) * x[0] + matrix(a_matrix) * sums_transitions == fin_matrix)
+
+    m_a_matrix = matrix(a_matrix, tc='d')
+
+    trans1 = m_a_matrix * x[0]
+    print(type(trans1))
+    constr1 = (m_matrix + m_a_matrix * x[0] + m_a_matrix * sums_transitions == fin_matrix)
+    model.addconstraint(constr1)
+    # c2: extended marking eq., after firing prefix of transitions, sufficient tokens available to fire first transition in y_a
+
+    # consumption matrix is incidence matrix without positive entries
+    consumption_matrix = np.copy(incidence_matrix.a_matrix)
+
+    for i in range(consumption_matrix.shape[0]):
+        for j in range(consumption_matrix.shape[1]):
+            if consumption_matrix[i][j] > 0:
+                consumption_matrix[i][j] = 0
+
+    consumption_matrix = matrix(consumption_matrix,  tc='d')
+
+    for a in range(1, k + 1):
+        sum_transitions_subsequences = np.zeros((len_transitions, 1))
+        #sum_transitions_subsequences = [0] * len_transitions
+        for b in range(1, a):
+            if b == 1:
+                sum_transitions_subsequences_2 = x[b] + y[b]
+            else:
+                sum_transitions_subsequences_2 = sum_transitions_subsequences_2 + x[b] + y[b]
+
+        if a < 2:
+            m_sum_transitions_subsequences = matrix(sum_transitions_subsequences,  tc='d')
+            model.addconstraint(matrix(np.zeros_like(m_vec), tc='d')
+                                <= m_matrix + m_a_matrix * x[0] + m_a_matrix * m_sum_transitions_subsequences +
+                                consumption_matrix * y[a])
+        else:
+            #m_sum_transitions_subsequences_2 = matrix(sum_transitions_subsequences_2, tc='d')
+            model.addconstraint(matrix(np.zeros_like(m_vec), tc='d')
+                                <= m_matrix + m_a_matrix * x[0] + m_a_matrix * sum_transitions_subsequences_2 +
+                                consumption_matrix * y[a])
+
+    # c3: x_a is natural number, relax to real value numbers
+    for a in range(k + 1):
+        model.addconstraint(0 <= x[a])
+
+    # c4: every element of y_a is 0 or 1, relax to real value numbers
+    for a in range(1, k + 1):
+        model.addconstraint(0 <= y[a])
+        model.addconstraint(y[a] <= 1)
+
+
+    # c6: only one element of y_a equals 1
+    for a in range(1, k + 1):
+        model.addconstraint(dot(matrix(np.ones((len_transitions, 1)), tc='d'), y[a]) == 1)
+
+    # c5: y_a corresponds to transition of synchronous product corresp. to start of subtrace_a
+    # all transitions not corresponding to start of subtrace_a in y_a are 0
+    # how to get i-th transition of log moves?
+    # ((t_trace.name, t_model.name), (t_trace.label, t_model.label))
+
+    transitions = []
+    for t in incidence_matrix.transitions:
+        transitions.append(t)
+
+    for a in range(1, k + 1):
+        for t in range(len(transitions)):
+            if transitions[t].label[0] != trace_division[a-1][0]:
+                model.addconstraint(y[a][t] == 0)
+
+    model.solve(solver='glpk')
+
+    # prim_obj corresponds to underestimate h
+    prim_obj = model.objective.value()
+
+    prim_obj = prim_obj[0] if prim_obj is not None else sys.maxsize
+    #points = points if points is not None else [0.0] * len(sync_net.transitions)
+
+    # points corresponds to solution vector z = x_0 + sum over (x_a + y_a) for 1<= a <= k
+
+    if not model.status == "primal infeasible":
+        points = x[0]
+        for a in range(1, k+1):
+            sum_subsequence = x[a] + y[a]
+            points = points + sum_subsequence
+
+        # solution vector as list of values
+        points_list = []
+        for i in range(len_transitions):
+            points_list.append(points.value()[i])
+
+        # if ilp, check if solution vector is integer and re-compute if not
+        if ilp:
+            if not check_lp_sol_int(points_list):
+
+                from cvxopt import glpk, blas
+
+                t = model._inmatrixform(format='dense')
+
+                lp1, vmap, mmap = t[0], t[1], t[2]
+
+                variables = lp1.variables()
+
+                x = variables[0]
+                c = lp1.objective._linear._coeff[x]
+
+                inequalities = lp1._inequalities
+
+                G = inequalities[0]._f._linear._coeff[x]
+                h = -inequalities[0]._f._constant
+
+                equalities = lp1._equalities
+                if equalities:
+                    A = equalities[0]._f._linear._coeff[x]
+                    b = -equalities[0]._f._constant
+                else:
+                    A = matrix(0.0, (0, len(x)))
+                    b = matrix(0.0, (0, 1))
+
+                size = G.size[1]
+                I = {i for i in range(size)}
+                status, x = glpk.ilp(c[:], G, h, A, b, I=I)
+
+                if status == 'optimal':
+                    prim_obj = blas.dot(c, x)
+
+                    # de-stack variables according to transitions
+                    points_list = [0.0] * len_transitions
+                    for i in range(size):
+                        rem = i % len_transitions
+                        points_list[rem] = points_list[rem] + x[i]
+
+                else:
+                    prim_obj = sys.maxsize
+
+                    points_list = [0.0] * len_transitions
     else:
         points_list = [0.0] * len_transitions
 
