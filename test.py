@@ -16,5 +16,5 @@ df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_bro
 
 log = pm4py.convert_to_event_log(df_problems)
 
-print(algorithm.apply(log, pn, im, fm, variant=variants.a_star))
+print(algorithm.apply_all_heuristics(log, pn, im, fm, variant=variants.a_star))
 # print(algorithm.apply(df_problems, pn, im, fm, variant=variants.a_star))

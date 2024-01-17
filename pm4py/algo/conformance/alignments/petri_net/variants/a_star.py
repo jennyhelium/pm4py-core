@@ -76,7 +76,7 @@ PARAM_MODEL_COST_FUNCTION = Parameters.PARAM_MODEL_COST_FUNCTION.value
 PARAM_SYNC_COST_FUNCTION = Parameters.PARAM_SYNC_COST_FUNCTION.value
 
 
-def get_best_worst_cost(petri_net, initial_marking, final_marking, original_trace=[], heuristic="STATE_EQUATION",
+def get_best_worst_cost(petri_net, initial_marking, final_marking, original_trace=[], heuristic="STATE_EQUATION_LP",
                         parameters=None):
     """
     Gets the best worst cost of an alignment
@@ -115,11 +115,13 @@ def apply(original_trace, trace: Trace, petri_net: PetriNet, initial_marking: Ma
 
     Parameters
     ----------
+    original_trace: trace as sequence of activity labels
     trace: :class:`list` input trace, assumed to be a list of events (i.e. the code will use the activity key
     to get the attributes)
     petri_net: :class:`pm4py.objects.petri.net.PetriNet` the Petri net to use in the alignment
     initial_marking: :class:`pm4py.objects.petri.net.Marking` initial marking in the Petri net
     final_marking: :class:`pm4py.objects.petri.net.Marking` final marking in the Petri net
+    heuristic: heuristic applied for a-star search
     parameters: :class:`dict` (optional) dictionary containing one of the following:
         Parameters.PARAM_TRACE_COST_FUNCTION: :class:`list` (parameter) mapping of each index of the trace to a positive cost value
         Parameters.PARAM_MODEL_COST_FUNCTION: :class:`dict` (parameter) mapping of each transition in the model to corresponding
@@ -425,18 +427,27 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, sk
 # übergeben welche Heuristik, ob LP oder ILP
 
 def __search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key, trace_net,
-             heuristic="STATE_EQUATION",
+             heuristic="STATE_EQUATION_LP",
              ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize):
-    if heuristic == "STATE_EQUATION":
-        return a_star_search.search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key,
-                                    ret_tuple_as_trans_desc, max_align_time_trace)
-
-    elif heuristic == "EXTENDED_STATE_EQUATION":
-        return a_star_search.search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, original_trace,
-                                                        activity_key, trace_net, ret_tuple_as_trans_desc,
-                                                        max_align_time_trace)
-
-    elif heuristic == "NAIVE":
+    if heuristic == "NAIVE":
         return a_star_search.search_naive(sync_net, ini, fin, cost_function, skip, original_trace,
                                           activity_key, trace_net, ret_tuple_as_trans_desc,
                                           max_align_time_trace)
+
+    elif heuristic == "STATE_EQUATION_LP":
+        return a_star_search.search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key,
+                                    ret_tuple_as_trans_desc, max_align_time_trace, int_sol=False)
+
+    elif heuristic == "STATE_EQUATION_ILP":
+        return a_star_search.search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key,
+                                    ret_tuple_as_trans_desc, max_align_time_trace, int_sol=True)
+
+    elif heuristic == "EXTENDED_STATE_EQUATION_LP":
+        return a_star_search.search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, original_trace,
+                                                        activity_key, trace_net, ret_tuple_as_trans_desc,
+                                                        max_align_time_trace, int_sol=False)
+
+    elif heuristic == "EXTENDED_STATE_EQUATION_ILP":
+        return a_star_search.search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, original_trace,
+                                                        activity_key, trace_net, ret_tuple_as_trans_desc,
+                                                        max_align_time_trace, int_sol=True)
