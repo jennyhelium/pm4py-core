@@ -39,7 +39,7 @@ from pm4py.util import typing
 
 
 def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tuple_as_trans_desc=False,
-           max_align_time_trace=sys.maxsize, solver=None):
+           max_align_time_trace=sys.maxsize, int_sol=False, solver=None):
     start_time = time.time()
     # create incidence matrix for sync net
     decorate_transitions_prepostset(sync_net)
@@ -70,10 +70,16 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
     closed = set()
 
     # compute heuristic for ini_state
-    h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
-                                   ini,
-                                   fin_vec, lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
-                                   use_cvxopt=use_cvxopt)
+    if int_sol:
+        h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
+                                       ini,
+                                       fin_vec, lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                       use_cvxopt=use_cvxopt)
+    else:
+        h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
+                                       ini,
+                                       fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
+                                       use_cvxopt=use_cvxopt)
 
     # Search Tupel (f = g+h, g bisherige Kosten, h Kosten bis final marking, p ??, t??, x?? trust??)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
@@ -110,12 +116,19 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
                 continue
 
             # else compute heuristic
-            h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
-                                           incidence_matrix, curr.m,
-                                           fin_vec,
-                                           # lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
-                                           lp_solver.DEFAULT_LP_SOLVER_VARIANT,
-                                           use_cvxopt=use_cvxopt)
+            if int_sol:
+                h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
+                                               incidence_matrix, curr.m,
+                                               fin_vec,
+                                               lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                               use_cvxopt=use_cvxopt)
+            else:
+                h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
+                                               incidence_matrix, curr.m,
+                                               fin_vec,
+                                               lp_solver.DEFAULT_LP_SOLVER_VARIANT,
+                                               use_cvxopt=use_cvxopt)
+
             lp_solved += 1
 
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
@@ -177,11 +190,10 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
 
 
 def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, activity_key, trace_net,
-                               ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, solver=None):
+                               ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, int_sol=False, solver=None):
     # k-based underestimation
     # incrementally increase k
     # maximize reuse of previously computed solution vectors
-    print(trace)
     start_time = time.time()
 
     # create incidence matrix for sync net
@@ -230,7 +242,7 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
                                    fin_vec, lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
                                    trace_division,
                                    use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
-                                   k=k)
+                                   int_sol=int_sol, k=k)
 
     # Search Tupel (f = g+h, g bisherige Kosten, h Kosten bis final marking, current marking is ini, p parent_state/marking, t ist transistion,wie state erreicht, x Lösung lp trust??)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
@@ -315,7 +327,7 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
                                            lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
                                            trace_division,
                                            use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
-                                           k=k)
+                                           int_sol=int_sol, k=k)
             lp_solved += 1
 
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
@@ -507,7 +519,7 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
 def compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
                             marking, fin_vec, variant, trace_division=[], use_cvxopt=False, heuristic="STATE_EQUATION",
                             solver=None,
-                            strict=True, k=1):
+                            strict=True, int_sol=False, k=1):
     if heuristic == "STATE_EQUATION":
         return utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
                                                            incidence_matrix, marking, fin_vec,
@@ -516,7 +528,7 @@ def compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incid
     elif heuristic == "EXTENDED_STATE_EQUATION":
         return utils.__compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
                                                                  incidence_matrix, marking, fin_vec, variant,
-                                                                 trace_division, ilp=True,
+                                                                 trace_division, ilp=int_sol,
                                                                  use_cvxopt=use_cvxopt, k=k)
 
 
