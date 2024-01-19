@@ -457,6 +457,9 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
     # return estimate h
     from cvxopt.modeling import op, variable, dot, sum, matrix
 
+    # number of solved ilps
+    ilp_solved = 0
+
     len_transitions = len(incidence_matrix.transitions)
     len_places = len(incidence_matrix.places)
 
@@ -629,9 +632,12 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
                     A = matrix(0.0, (0, len(x)))
                     b = matrix(0.0, (0, 1))
 
+                print("solve ilp")
                 size = G.size[1]
                 I = {i for i in range(size)}
                 status, x = glpk.ilp(c[:], G, h, A, b, I=I)
+
+                ilp_solved = ilp_solved + 1
 
                 if status == 'optimal':
                     prim_obj = blas.dot(c, x)
@@ -649,7 +655,8 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
     else:
         points_list = [0.0] * len_transitions
 
-    return prim_obj, points_list
+    #print("ilp_solved ", ilp_solved)
+    return prim_obj, points_list, ilp_solved
 
 
 def __get_tuple_from_queue(marking, queue):

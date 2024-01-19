@@ -237,7 +237,7 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
 
     # compute heuristic for ini_state
     # compute underestimate for k = 1, y_a refers to first transition in y_i starting with transition in trace model
-    h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
+    h, x, ilp_solved = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
                                    ini,
                                    fin_vec, lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
                                    trace_division,
@@ -253,7 +253,7 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
     visited = 0
     queued = 0
     traversed = 0
-    lp_solved = 1
+    lp_solved = 1 + ilp_solved
 
     # ??
     trans_empty_preset = set(t for t in sync_net.transitions if len(t.in_arcs) == 0)
@@ -322,13 +322,13 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
                         k = k
 
             # compute exact solution
-            h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
+            h, x, ilp_solved = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
                                            incidence_matrix, curr.m, fin_vec,
                                            lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
                                            trace_division,
                                            use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
                                            int_sol=int_sol, k=k)
-            lp_solved += 1
+            lp_solved = lp_solved + 1 + ilp_solved
 
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
 
