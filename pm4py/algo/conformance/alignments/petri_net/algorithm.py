@@ -140,7 +140,7 @@ def apply_all_heuristics(log, petri_net, initial_marking, final_marking, paramet
 
     best_worst_cost = __get_best_worst_cost(petri_net, initial_marking, final_marking, variant, parameters)
     variants_idxs, one_tr_per_var = __get_variants_structure(log, parameters)
-    #progress = __get_progress_bar(len(one_tr_per_var), parameters)
+    # progress = __get_progress_bar(len(one_tr_per_var), parameters)
     parameters[Parameters.BEST_WORST_COST_INTERNAL] = best_worst_cost
 
     all_variants_alignments = []
@@ -170,6 +170,75 @@ def apply_all_heuristics(log, petri_net, initial_marking, final_marking, paramet
     for i in range(len(heuristics)):
         print(heuristics[i], all_variants_alignments[i])
     return all_variants_alignments
+
+
+def create_data(log, petri_net, initial_marking, final_marking, parameters=None, variant=DEFAULT_VARIANT):
+    import pandas as pd
+
+    if parameters is None:
+        parameters = dict()
+
+    if solver.DEFAULT_LP_SOLVER_VARIANT is not None:
+        if not check_soundness.check_easy_soundness_net_in_fin_marking(petri_net, initial_marking, final_marking):
+            raise Exception("trying to apply alignments on a Petri net that is not a easy sound net!!")
+
+    variant = __variant_mapper(variant)
+
+    start_time = time.time()
+    max_align_time = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME, parameters,
+                                                sys.maxsize)
+    max_align_time_case = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME_TRACE, parameters,
+                                                     sys.maxsize)
+
+    best_worst_cost = __get_best_worst_cost(petri_net, initial_marking, final_marking, variant, parameters)
+    variants_idxs, one_tr_per_var = __get_variants_structure(log, parameters)
+    # progress = __get_progress_bar(len(one_tr_per_var), parameters)
+    parameters[Parameters.BEST_WORST_COST_INTERNAL] = best_worst_cost
+
+    heuristics = ["NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
+                  "EXTENDED_STATE_EQUATION_ILP"]
+
+    # model (pn), trace, Zeit (Varianz mehrmals)!, statistiken (Kosten, alignment), wie oft int solution
+    # [trace, petri net, init_marking, final_marking, ]
+    data = []
+
+    for trace in one_tr_per_var:
+        data_per_trace = []
+
+        t = [x['concept:name'] for x in trace]
+
+        print(t)
+
+        data_per_trace.append(t)
+        data_per_trace = data_per_trace + [petri_net, initial_marking, final_marking]
+
+        this_max_align_time = min(max_align_time_case, (max_align_time - (time.time() - start_time)) * 0.5)
+        parameters[Parameters.PARAM_MAX_ALIGN_TIME_TRACE] = this_max_align_time
+
+        times = []
+
+        # apply each heuristic to trace and save alignment and computation time
+        for h in heuristics:
+            print(h)
+            start_time_alignment = time.time()
+            alignment = apply_trace(t, trace, petri_net, initial_marking, final_marking, h, parameters=copy(parameters),
+                                    variant=variant)
+            end_time_alignment = time.time()
+            elapsed_time = end_time_alignment - start_time_alignment
+
+            data_per_trace.append(alignment)
+            times.append(elapsed_time)
+
+        data_per_trace = data_per_trace + times
+        data.append(data_per_trace)
+
+    df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "Naive",
+                                     "State Eq. LP", "State Eq. ILP", "Ext. State Eq. LP", "Ext. State Eq. ILP",
+                                     "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                                     "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time", ])
+
+    #df.to_csv("data.csv", index=False)
+    return df
 
 
 def apply_trace(original_trace, trace, petri_net, initial_marking, final_marking, heuristic, parameters=None,
