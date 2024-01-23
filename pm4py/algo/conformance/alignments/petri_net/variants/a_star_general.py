@@ -190,7 +190,8 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
 
 
 def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, activity_key, trace_net,
-                               ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, int_sol=False, solver=None):
+                               ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, int_sol=False,
+                               solver=None):
     # k-based underestimation
     # incrementally increase k
     # maximize reuse of previously computed solution vectors
@@ -238,11 +239,11 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
     # compute heuristic for ini_state
     # compute underestimate for k = 1, y_a refers to first transition in y_i starting with transition in trace model
     h, x, ilp_solved = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
-                                   ini,
-                                   fin_vec, lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
-                                   trace_division,
-                                   use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
-                                   int_sol=int_sol, k=k)
+                                               ini,
+                                               fin_vec, lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                               trace_division,
+                                               use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
+                                               int_sol=int_sol, k=k)
 
     # Search Tupel (f = g+h, g bisherige Kosten, h Kosten bis final marking, current marking is ini, p parent_state/marking, t ist transistion,wie state erreicht, x Lösung lp trust??)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
@@ -323,11 +324,11 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
 
             # compute exact solution
             h, x, ilp_solved = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
-                                           incidence_matrix, curr.m, fin_vec,
-                                           lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
-                                           trace_division,
-                                           use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
-                                           int_sol=int_sol, k=k)
+                                                       incidence_matrix, curr.m, fin_vec,
+                                                       lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                                       trace_division,
+                                                       use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
+                                                       int_sol=int_sol, k=k)
             lp_solved = lp_solved + 1 + ilp_solved
 
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
@@ -400,8 +401,13 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
     closed = set()
 
     # compute heuristic for ini_state
-    # compute underestimate for k = 1, y_a refers to first transition in y_i starting with transition in trace model
-    h = len(trace)
+    remaining_events = len(trace)
+
+    h = 0
+    for i in range(remaining_events):
+        index = remaining_events - i
+        label = trace[-index]
+        h = h + compute_naive_heuristic(label, sync_net, cost_function)
 
     # Search Tupel (f = g+h, g bisherige Kosten, h Kosten bis final marking, current marking is ini, p parent_state/marking, t ist transistion,wie state erreicht, x Lösung lp trust??)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, None, True)
@@ -426,7 +432,6 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
         current_marking = curr.m
 
         # marking with unknown solution vector: original estimate corresp. to unrealizable firing sequence
-        # try to improve underestimate function by increasing k and choose new way to split trace
         while not curr.trust:
             if (time.time() - start_time) > max_align_time_trace:
                 return None
@@ -469,6 +474,7 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
         if curr.h < 0.01:
             # if head represents final marking: return corresp. alignment by reconstructing
             if current_marking == fin:
+                current_h = curr.h
                 return utils.__reconstruct_alignment(curr, visited, queued, traversed,
                                                      ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
                                                      lp_solved=0)
@@ -509,10 +515,11 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
             for i in range(remaining_events):
                 index = remaining_events - i
                 label = trace[-index]
-                h = h + compute_naive_heuristic(label, sync_net, cost_function)
+                naive = compute_naive_heuristic(label, sync_net, cost_function)
+                h = h + naive
             new_f = g + h
 
-            tp = utils.SearchTuple(new_f, g, h, new_marking, curr, t, None, False)
+            tp = utils.SearchTuple(new_f, g, h, new_marking, curr, t, None, True)
             heapq.heappush(open_set, tp)
 
 
@@ -551,14 +558,19 @@ def explained_events(trace_net, marking):
     for place in trace_net_places:
         places.append(place.name)
 
-    places = sorted(places)
+    places_int = [int(p[2:]) for p in places]
+
+    places_sorted = sorted(places_int)
 
     for p in marking:
         curr_trace_place = p.name[0]
 
         if curr_trace_place in places:
-            index = places.index(curr_trace_place)
-            return index
+            curr_trace_place_int = int(curr_trace_place[2:])
+
+            if curr_trace_place_int in places_sorted:
+                index = places_sorted.index(curr_trace_place_int)
+                return index
     return 0
 
 
