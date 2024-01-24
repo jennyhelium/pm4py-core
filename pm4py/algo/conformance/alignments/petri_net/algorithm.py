@@ -144,7 +144,7 @@ def apply_all_heuristics(log, petri_net, initial_marking, final_marking, paramet
     parameters[Parameters.BEST_WORST_COST_INTERNAL] = best_worst_cost
 
     all_variants_alignments = []
-    heuristics = ["NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
+    heuristics = ["NO_HEURISTIC", "NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
                   "EXTENDED_STATE_EQUATION_ILP"]
 
     for h in heuristics:
@@ -195,7 +195,7 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
     # progress = __get_progress_bar(len(one_tr_per_var), parameters)
     parameters[Parameters.BEST_WORST_COST_INTERNAL] = best_worst_cost
 
-    heuristics = ["NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
+    heuristics = ["NO_HEURISTIC", "NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
                   "EXTENDED_STATE_EQUATION_ILP"]
 
     # model (pn), trace, Zeit (Varianz mehrmals)!, statistiken (Kosten, alignment), wie oft int solution
@@ -232,12 +232,15 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
         data_per_trace = data_per_trace + times
         data.append(data_per_trace)
 
-    df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "Naive",
+    # wie oft nicht integer solution im Lösungsvektor bei LP
+    # Timeout?
+    # Grafik? Was besser wieviel?
+    df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
                                      "State Eq. LP", "State Eq. ILP", "Ext. State Eq. LP", "Ext. State Eq. ILP",
-                                     "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                                     "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
                                      "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time", ])
 
-    #df.to_csv("data.csv", index=False)
+    df.to_pickle("./data.pkl")
     return df
 
 
@@ -375,7 +378,7 @@ def apply_log(log, petri_net, initial_marking, final_marking, parameters=None, v
         this_max_align_time = min(max_align_time_case, (max_align_time - (time.time() - start_time)) * 0.5)
         parameters[Parameters.PARAM_MAX_ALIGN_TIME_TRACE] = this_max_align_time
         all_alignments.append(
-            apply_trace(t, trace, petri_net, initial_marking, final_marking, heuristic="EXTENDED_STATE_EQUATION",
+            apply_trace(t, trace, petri_net, initial_marking, final_marking, heuristic="NAIVE",
                         parameters=copy(parameters), variant=variant))
         if progress is not None:
             progress.update()

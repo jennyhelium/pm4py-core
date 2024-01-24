@@ -390,7 +390,7 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
 
 
 def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, trace_net,
-                 ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, solver=None):
+                 ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, use_naive=True, solver=None):
     start_time = time.time()
 
     # create incidence matrix for sync net
@@ -404,10 +404,11 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
     remaining_events = len(trace)
 
     h = 0
-    for i in range(remaining_events):
-        index = remaining_events - i
-        label = trace[-index]
-        h = h + compute_naive_heuristic(label, sync_net, cost_function)
+    if use_naive:
+        for i in range(remaining_events):
+            index = remaining_events - i
+            label = trace[-index]
+            h = h + compute_naive_heuristic(label, sync_net, cost_function)
 
     # Search Tupel (f = g+h, g bisherige Kosten, h Kosten bis final marking, current marking is ini, p parent_state/marking, t ist transistion,wie state erreicht, x Lösung lp trust??)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, None, True)
@@ -444,15 +445,18 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
                 continue
 
             # else
-            explained = explained_events(trace_net, current_marking)
-
-            remaining_events = len(trace) - explained
-            # compute exact solution
             h = 0
-            for i in range(remaining_events):
-                index = remaining_events - i
-                label = trace[-index]
-                h = h + compute_naive_heuristic(label, sync_net, cost_function)
+
+            if use_naive:
+                # compute exact solution
+                explained = explained_events(trace_net, current_marking)
+
+                remaining_events = len(trace) - explained
+
+                for i in range(remaining_events):
+                    index = remaining_events - i
+                    label = trace[-index]
+                    h = h + compute_naive_heuristic(label, sync_net, cost_function)
 
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, None, True)
 
@@ -512,11 +516,13 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
             remaining_events = len(trace) - explained
 
             h = 0
-            for i in range(remaining_events):
-                index = remaining_events - i
-                label = trace[-index]
-                naive = compute_naive_heuristic(label, sync_net, cost_function)
-                h = h + naive
+
+            if use_naive:
+                for i in range(remaining_events):
+                    index = remaining_events - i
+                    label = trace[-index]
+                    naive = compute_naive_heuristic(label, sync_net, cost_function)
+                    h = h + naive
             new_f = g + h
 
             tp = utils.SearchTuple(new_f, g, h, new_marking, curr, t, None, True)

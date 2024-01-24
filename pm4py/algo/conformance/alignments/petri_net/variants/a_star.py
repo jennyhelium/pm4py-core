@@ -429,10 +429,15 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, sk
 def __search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key, trace_net,
              heuristic="STATE_EQUATION_LP",
              ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize):
-    if heuristic == "NAIVE":
+    if heuristic == "NO_HEURISTIC":
         return a_star_search.search_naive(sync_net, ini, fin, cost_function, skip, original_trace,
                                           activity_key, trace_net, ret_tuple_as_trans_desc,
-                                          max_align_time_trace)
+                                          max_align_time_trace, use_naive=False)
+
+    elif heuristic == "NAIVE":
+        return a_star_search.search_naive(sync_net, ini, fin, cost_function, skip, original_trace,
+                                          activity_key, trace_net, ret_tuple_as_trans_desc,
+                                          max_align_time_trace, use_naive=True)
 
     elif heuristic == "STATE_EQUATION_LP":
         return a_star_search.search(sync_net, ini, fin, cost_function, skip, original_trace, activity_key,
