@@ -198,11 +198,13 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
     heuristics = ["NO_HEURISTIC", "NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
                   "EXTENDED_STATE_EQUATION_ILP"]
 
-    # model (pn), trace, Zeit (Varianz mehrmals)!, statistiken (Kosten, alignment), wie oft int solution
     # [trace, petri net, init_marking, final_marking, ]
     data = []
 
+    count_trace = 0
     for trace in one_tr_per_var:
+        print(count_trace)
+        count_trace = count_trace + 1
         data_per_trace = []
 
         t = [x['concept:name'] for x in trace]
@@ -232,16 +234,89 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
         data_per_trace = data_per_trace + times
         data.append(data_per_trace)
 
-    # wie oft nicht integer solution im Lösungsvektor bei LP
-    # Timeout?
-    # Grafik? Was besser wieviel?
+        df = pd.DataFrame(data,
+                          columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
+                                   "State Eq. LP", "State Eq. ILP", "Ext. State Eq. LP", "Ext. State Eq. ILP",
+                                   "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                                   "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"])
+
+        df.to_pickle("data_curr.pkl")
+
     df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
                                      "State Eq. LP", "State Eq. ILP", "Ext. State Eq. LP", "Ext. State Eq. ILP",
                                      "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
-                                     "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time", ])
+                                     "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"])
+    create_bar_plot(df)
+    create_box_plots(df)
 
-    df.to_pickle("./data.pkl")
+    from datetime import datetime
+    date_time = datetime.now()
+    format_date_time = '%Y-%m-%d %H:%M:%S'
+    string = date_time.strftime(format_date_time)
+
+    df.to_pickle("data_" + string + ".pkl")
     return df
+
+
+def create_bar_plot(df):
+    import matplotlib.pyplot as plt
+
+    maxValIndex = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                      "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"]].idxmin(axis="columns")
+    print(maxValIndex)
+
+    count_no = 0
+    count_naive = 0
+    count_state_lp = 0
+    count_state_ilp = 0
+    count_ext_lp = 0
+    count_ext_ilp = 0
+
+    for i in maxValIndex:
+        if i == "No Heuristic Time":
+            count_no = count_no + 1
+        elif i == "Naive Time":
+            count_naive = count_naive + 1
+        elif i == "State Eq. LP Time":
+            count_state_lp = count_state_lp + 1
+        elif i == "State Eq. ILP Time":
+            count_state_ilp = count_state_ilp + 1
+        elif i == "Ext. State Eq. LP Time":
+            count_ext_lp = count_ext_lp + 1
+        else:
+            count_ext_ilp = count_ext_ilp + 1
+
+    data_plot = {"No Heuristic": count_no, "Naive": count_naive, "State LP": count_state_lp,
+                 "State ILP": count_state_ilp, "Ext. LP": count_ext_lp, "Ext. ILP": count_ext_ilp}
+
+    heuristics_plot = list(data_plot.keys())
+    values = list(data_plot.values())
+
+    # create plot
+    plt.bar(heuristics_plot, values, color='maroon', width=0.4)
+
+    plt.xlabel("Heuristics")
+    plt.ylabel("No. of traces")
+    plt.title("No. of each heuristic with minimal computation time")
+    plt.show()
+
+
+def create_box_plots(df):
+    import matplotlib.pyplot as plt
+
+    df_times = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                   "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"]]
+
+    df_times.plot(
+        kind='box',
+        subplots=True,
+        sharey=False,
+        figsize=(10, 6)
+    )
+
+    # increase spacing between subplots
+    plt.subplots_adjust(wspace=1.5)
+    plt.show()
 
 
 def apply_trace(original_trace, trace, petri_net, initial_marking, final_marking, heuristic, parameters=None,
