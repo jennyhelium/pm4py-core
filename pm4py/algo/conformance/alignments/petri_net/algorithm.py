@@ -33,6 +33,7 @@ from pm4py.objects.log.obj import EventLog, EventStream, Trace
 from pm4py.objects.petri_net.obj import PetriNet, Marking
 from pm4py.util import typing, constants
 import pandas as pd
+import numpy as np
 
 
 class Variants(Enum):
@@ -190,6 +191,10 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
     max_align_time_case = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME_TRACE, parameters,
                                                      sys.maxsize)
 
+    # timeout after ten minutes per case
+    max_align_time_case = 360
+    print("Max align time case", max_align_time_case)
+
     best_worst_cost = __get_best_worst_cost(petri_net, initial_marking, final_marking, variant, parameters)
     variants_idxs, one_tr_per_var = __get_variants_structure(log, parameters)
     # progress = __get_progress_bar(len(one_tr_per_var), parameters)
@@ -222,14 +227,24 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
         # apply each heuristic to trace and save alignment and computation time
         for h in heuristics:
             print(h)
-            start_time_alignment = time.time()
-            alignment = apply_trace(t, trace, petri_net, initial_marking, final_marking, h, parameters=copy(parameters),
-                                    variant=variant)
-            end_time_alignment = time.time()
-            elapsed_time = end_time_alignment - start_time_alignment
+
+            variance = 5
+
+            times_alignments = []
+            for i in range(variance):
+                start_time_alignment = time.time()
+                alignment = apply_trace(t, trace, petri_net, initial_marking, final_marking, h,
+                                        parameters=copy(parameters),
+                                        variant=variant)
+                end_time_alignment = time.time()
+                elapsed_time = end_time_alignment - start_time_alignment
+
+                times_alignments.append(elapsed_time)
+
+            elapsed_time_mean = np.sum(times_alignments) / variance
 
             data_per_trace.append(alignment)
-            times.append(elapsed_time)
+            times.append(elapsed_time_mean)
 
         data_per_trace = data_per_trace + times
         data.append(data_per_trace)
