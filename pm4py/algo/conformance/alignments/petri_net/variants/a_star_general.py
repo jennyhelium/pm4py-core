@@ -40,6 +40,7 @@ from pm4py.util import typing
 
 def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tuple_as_trans_desc=False,
            max_align_time_trace=sys.maxsize, int_sol=False, solver=None):
+
     start_time = time.time()
     # create incidence matrix for sync net
     decorate_transitions_prepostset(sync_net)
@@ -69,6 +70,7 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
     # init set C "closed" which contains already visited markings
     closed = set()
 
+    num_real_sol = 0
     # compute heuristic for ini_state
     if int_sol:
         h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
@@ -80,6 +82,8 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
                                        ini,
                                        fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
                                        use_cvxopt=use_cvxopt)
+        if not utils.check_lp_sol_int(x):
+            num_real_sol = num_real_sol + 1
 
     # Search Tupel (f = g+h, g bisherige Kosten, h Kosten bis final marking, p ??, t??, x?? trust??)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
@@ -128,6 +132,8 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
                                                fin_vec,
                                                lp_solver.DEFAULT_LP_SOLVER_VARIANT,
                                                use_cvxopt=use_cvxopt)
+                if not utils.check_lp_sol_int(x):
+                    num_real_sol = num_real_sol + 1
 
             lp_solved += 1
 
@@ -151,6 +157,7 @@ def search(sync_net, ini, fin, cost_function, skip, trace, activity_key, ret_tup
         if curr.h < 0.01:
             # if head represents final marking: return corresp. alignment by reconstructing
             if current_marking == fin:
+                print("Num real solutions ", num_real_sol)
                 return utils.__reconstruct_alignment(curr, visited, queued, traversed,
                                                      ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
                                                      lp_solved=lp_solved)
@@ -209,21 +216,6 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
     h_cvx = np.matrix(np.zeros(len(sync_net.transitions))).transpose()
     cost_vec = [x * 1.0 for x in cost_vec]
 
-    transitions_sorted = incidence_matrix.transitions
-
-    use_cvxopt = False
-    if lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN or lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP:
-        use_cvxopt = True
-
-    if use_cvxopt:
-        # not available in the latest version of PM4Py
-        from cvxopt import matrix
-
-        a_matrix = matrix(a_matrix)
-        g_matrix = matrix(g_matrix)
-        h_cvx = matrix(h_cvx)
-        cost_vec = matrix(cost_vec)
-
     # init set C "closed" which contains already visited markings
     closed = set()
 
@@ -242,7 +234,7 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
                                                ini,
                                                fin_vec, lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
                                                trace_division,
-                                               use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
+                                               use_cvxopt=True, heuristic="EXTENDED_STATE_EQUATION",
                                                int_sol=int_sol, k=k)
 
     # Search Tupel (f = g+h, g bisherige Kosten, h Kosten bis final marking, current marking is ini, p parent_state/marking, t ist transistion,wie state erreicht, x Lösung lp trust??)
@@ -327,8 +319,9 @@ def search_extended_marking_eq(sync_net, ini, fin, cost_function, skip, trace, a
                                                        incidence_matrix, curr.m, fin_vec,
                                                        lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
                                                        trace_division,
-                                                       use_cvxopt=use_cvxopt, heuristic="EXTENDED_STATE_EQUATION",
+                                                       use_cvxopt=True, heuristic="EXTENDED_STATE_EQUATION",
                                                        int_sol=int_sol, k=k)
+
             lp_solved = lp_solved + 1 + ilp_solved
 
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
