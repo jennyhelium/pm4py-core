@@ -16,6 +16,7 @@
 '''
 import heapq
 import sys
+import time
 from copy import copy
 from typing import List, Tuple
 
@@ -348,8 +349,6 @@ def __compute_exact_extended_state_equation(sync_net, a_matrix, h_cvx, g_matrix,
 
     m_a_matrix = matrix(a_matrix, tc='d')
 
-    trans1 = m_a_matrix * x[0]
-    print(type(trans1))
     constr1 = (m_matrix + m_a_matrix * x[0] + m_a_matrix * sums_transitions == fin_matrix)
     model.addconstraint(constr1)
     # c2: extended marking eq., after firing prefix of transitions, sufficient tokens available to fire first transition in y_a
@@ -455,6 +454,8 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
 
     # return solution vector z = x_0 + sum ( x_a + y_a )
     # return estimate h
+    #st_total = time.time()
+
     from cvxopt.modeling import op, variable, dot, sum, matrix
 
     # number of solved ilps
@@ -476,15 +477,15 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
 
     # variable x_i corresponds to any other transitions firing
 
-    # x = np.empty((k+1, len_transitions))
-
     x = [0 for i in range(k + 1)]
 
     for i in range(k + 1):
         x[i] = variable(size=len_transitions, name="x_%s" % i)
 
     # objective function
-    cost_transp = np.transpose(cost_vec)
+    #cost_transp = np.transpose(cost_vec)
+
+    #st_obj = time.time()
 
     sum_x = x[0]
     for i in range(1, k + 1):
@@ -496,17 +497,25 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
 
     # obj = np.dot(cost_transp, np.sum(x.value, axis=0)) + np.dot(cost_transp, np.sum(y.value, axis=0))
     # dot transposes first input
+    cost_vec = matrix(cost_vec)
     obj = dot(cost_vec, sum_x) + dot(cost_vec, sum_y)
 
     model = op(obj)
 
+    #et_obj = time.time()
+    #time_obj = et_obj - st_obj
     # c1: marking eq., reach final marking from initial/current after combining all firing transitions of all x_a and y_a
     # was, wenn mittendrin berechnet wird? Trotzdem von initial marking?
+
+    #st_constr1 = time.time()
+
     m_vec = incidence_matrix.encode_marking(marking)
-    m_vec_2d = [m_vec[i:i + 1] for i in range(0, len(m_vec), 1)]
+    #m_vec_2d = [m_vec[i:i + 1] for i in range(0, len(m_vec), 1)]
+    m_vec_2d = [m_vec[i:i + 1] for i in range(len_places)]
     m_matrix = matrix(m_vec_2d, (len_places, 1), tc='d')
 
-    fin_vec_2d = [fin_vec[i:i + 1] for i in range(0, len(fin_vec), 1)]
+    #fin_vec_2d = [fin_vec[i:i + 1] for i in range(0, len(fin_vec), 1)]
+    fin_vec_2d = [fin_vec[i:i + 1] for i in range(len_places)]
     fin_matrix = matrix(fin_vec_2d, (len_places, 1), tc='d')
 
     sums_transitions = x[1] + y[1]
@@ -517,19 +526,17 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
 
     m_a_matrix = matrix(a_matrix, tc='d')
 
-    trans1 = m_a_matrix * x[0]
-    print(type(trans1))
     constr1 = (m_matrix + m_a_matrix * x[0] + m_a_matrix * sums_transitions == fin_matrix)
     model.addconstraint(constr1)
+
+    #et_constr1 = time.time()
+    #time_constr1 = et_constr1 - st_constr1
+
     # c2: extended marking eq., after firing prefix of transitions, sufficient tokens available to fire first transition in y_a
+    #st_constr2 = time.time()
 
     # consumption matrix is incidence matrix without positive entries
-    consumption_matrix = np.copy(incidence_matrix.a_matrix)
-
-    for i in range(consumption_matrix.shape[0]):
-        for j in range(consumption_matrix.shape[1]):
-            if consumption_matrix[i][j] > 0:
-                consumption_matrix[i][j] = 0
+    consumption_matrix = np.minimum(incidence_matrix.a_matrix, 0)
 
     consumption_matrix = matrix(consumption_matrix, tc='d')
 
@@ -553,6 +560,9 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
                                 <= m_matrix + m_a_matrix * x[0] + m_a_matrix * sum_transitions_subsequences_2 +
                                 consumption_matrix * y[a])
 
+    #et_constr2 = time.time()
+    #time_constr2 = et_constr2 - st_constr2
+
     # c3: x_a is natural number, relax to real value numbers
     for a in range(k + 1):
         model.addconstraint(0 <= x[a])
@@ -571,20 +581,26 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
     # how to get i-th transition of log moves?
     # ((t_trace.name, t_model.name), (t_trace.label, t_model.label))
 
-    transitions = []
-    for t in incidence_matrix.transitions:
-        transitions.append(t)
+    #st_constr5 = time.time()
+
+    transitions = [t for t in incidence_matrix.transitions]
 
     for a in range(1, k + 1):
-        for t in range(len(transitions)):
+        for t in range(len_transitions):
             if transitions[t].label[0] != trace_division[a - 1][0]:
                 model.addconstraint(y[a][t] == 0)
+
+    #et_constr5 = time.time()
+    #time_constr5 = et_constr5 - st_constr5
 
     from cvxopt import solvers
     solvers.options['glpk'] = this_options_lp
 
+    #st_solve = time.time()
     model.solve(solver='glpk')
 
+    #et_solve = time.time()
+    #time_solve = et_solve - st_solve
     # prim_obj corresponds to underestimate h
     prim_obj = model.objective.value()
 
@@ -594,15 +610,14 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
     # points corresponds to solution vector z = x_0 + sum over (x_a + y_a) for 1<= a <= k
 
     if not model.status == "primal infeasible":
-        points = x[0]
-        for a in range(1, k + 1):
-            sum_subsequence = x[a] + y[a]
-            points = points + sum_subsequence
 
         # solution vector as list of values
-        points_list = []
-        for i in range(len_transitions):
-            points_list.append(points.value()[i])
+        points_list = np.array(x[0].value)
+        for a in range(1, k+1):
+            x_np = np.array(x[a].value)
+            y_np = np.array(y[a].value)
+            points_list = np.add(points_list, (np.add(x_np, y_np)))
+        points_list = points_list.flatten()
 
         # if ilp, check if solution vector is integer and re-compute if not
         if ilp:
@@ -643,11 +658,14 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
                     prim_obj = blas.dot(c, x)
 
                     # de-stack variables according to transitions
-                    points_list = [0.0] * len_transitions
-                    for i in range(size):
-                        rem = i % len_transitions
-                        points_list[rem] = points_list[rem] + x[i]
+                    #points_list = [0.0] * len_transitions
+                    #for i in range(size):
+                     #   rem = i % len_transitions
+                      #  points_list[rem] = points_list[rem] + x[i]
 
+                    points_list = np.array(x)
+                    points_list = points_list.reshape((-1, len_transitions))
+                    points_list = np.sum(points_list, axis =0)
                 else:
                     prim_obj = sys.maxsize
 
@@ -656,6 +674,12 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
         points_list = [0.0] * len_transitions
 
     #print("ilp_solved ", ilp_solved)
+
+    #et_total = time.time()
+    #time_total = et_total - st_total
+
+    #print("Time total",time_total)
+
     return prim_obj, points_list, ilp_solved
 
 
