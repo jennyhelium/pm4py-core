@@ -36,6 +36,7 @@ this_options_lp["LPX_K_MSGLEV"] = 0
 this_options_lp["msg_lev"] = "GLP_MSG_OFF"
 this_options_lp["show_progress"] = False
 this_options_lp["presolve"] = "GLP_ON"
+this_options_lp["tm_lim"] = 60000
 
 def search_path_among_sol(sync_net: PetriNet, ini: Marking, fin: Marking,
                           activated_transitions: List[PetriNet.Transition], skip=SKIP) -> Tuple[
@@ -460,7 +461,6 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
 
     # number of solved ilps
     ilp_solved = 0
-
     len_transitions = len(incidence_matrix.transitions)
     len_places = len(incidence_matrix.places)
 
@@ -650,7 +650,7 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
                 print("solve ilp")
                 size = G.size[1]
                 I = {i for i in range(size)}
-                status, x = glpk.ilp(c[:], G, h, A, b, I=I)
+                status, x = glpk.ilp(c[:], G, h, A, b, I=I, options={"tm_lim": 60000})
 
                 ilp_solved = ilp_solved + 1
 
