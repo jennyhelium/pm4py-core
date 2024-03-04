@@ -173,15 +173,18 @@ def apply_all_heuristics(log, petri_net, initial_marking, final_marking, paramet
     return all_variants_alignments
 
 
-def create_data(log, petri_net, initial_marking, final_marking, parameters=None, variant=DEFAULT_VARIANT):
+def create_data(log, petri_net, initial_marking, final_marking, variance, name_df, parameters=None,
+                variant=DEFAULT_VARIANT):
     import pandas as pd
+    from datetime import datetime
 
     if parameters is None:
         parameters = dict()
 
     if solver.DEFAULT_LP_SOLVER_VARIANT is not None:
         if not check_soundness.check_easy_soundness_net_in_fin_marking(petri_net, initial_marking, final_marking):
-            raise Exception("trying to apply alignments on a Petri net that is not a easy sound net!!")
+            print("trying to apply alignments on a Petri net that is not a easy sound net!!")
+            return pd.DataFrame([])
 
     variant = __variant_mapper(variant)
 
@@ -202,6 +205,8 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
 
     heuristics = ["NO_HEURISTIC", "NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
                   "EXTENDED_STATE_EQUATION_ILP"]
+    heuristics_lp = ["STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
+                     "EXTENDED_STATE_EQUATION_ILP"]
 
     # [trace, petri net, init_marking, final_marking, ]
     data = []
@@ -223,12 +228,11 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
         parameters[Parameters.PARAM_MAX_ALIGN_TIME_TRACE] = this_max_align_time
 
         times = []
+        num_lp = []
 
         # apply each heuristic to trace and save alignment and computation time
         for h in heuristics:
             print(h)
-
-            variance = 5
 
             times_alignments = []
             for i in range(variance):
@@ -243,33 +247,39 @@ def create_data(log, petri_net, initial_marking, final_marking, parameters=None,
 
             elapsed_time_mean = np.sum(times_alignments) / variance
 
+            if h in heuristics_lp:
+                num_lp.append(alignment["lp_solved"])
+
             data_per_trace.append(alignment)
             times.append(elapsed_time_mean)
 
-        data_per_trace = data_per_trace + times
+        data_per_trace = data_per_trace + times + num_lp
         data.append(data_per_trace)
 
         df = pd.DataFrame(data,
                           columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
-                                   "State Eq. LP", "State Eq. ILP", "Ext. State Eq. LP", "Ext. State Eq. ILP",
+                                   "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
                                    "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
-                                   "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"])
+                                   "Ext. Eq. LP Time", "Ext. Eq. ILP Time",
+                                   "State Eq. LP Solved LP", "State Eq. ILP Solved LP",
+                                   "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
 
-        df.to_pickle("data_curr.pkl")
+        df.to_pickle(name_df + "_curr.pkl")
 
     df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
-                                     "State Eq. LP", "State Eq. ILP", "Ext. State Eq. LP", "Ext. State Eq. ILP",
+                                     "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
                                      "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
-                                     "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"])
+                                     "Ext. Eq. LP Time", "Ext. Eq. ILP Time",
+                                     "State Eq. LP Solved LP", "State Eq. ILP Solved LP",
+                                     "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
     create_bar_plot(df)
     create_box_plots(df)
 
-    from datetime import datetime
     date_time = datetime.now()
     format_date_time = '%Y-%m-%d %H:%M:%S'
     string = date_time.strftime(format_date_time)
 
-    df.to_pickle("data_" + string + ".pkl")
+    df.to_pickle("results/" + name_df + string + ".pkl")
     return df
 
 
@@ -277,7 +287,7 @@ def create_bar_plot(df):
     import matplotlib.pyplot as plt
 
     maxValIndex = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
-                      "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"]].idxmin(axis="columns")
+                      "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
     print(maxValIndex)
 
     count_no = 0
@@ -296,7 +306,7 @@ def create_bar_plot(df):
             count_state_lp = count_state_lp + 1
         elif i == "State Eq. ILP Time":
             count_state_ilp = count_state_ilp + 1
-        elif i == "Ext. State Eq. LP Time":
+        elif i == "Ext. Eq. LP Time":
             count_ext_lp = count_ext_lp + 1
         else:
             count_ext_ilp = count_ext_ilp + 1
@@ -320,7 +330,7 @@ def create_box_plots(df):
     import matplotlib.pyplot as plt
 
     df_times = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
-                   "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"]]
+                   "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]]
 
     df_times.plot(
         kind='box',
@@ -332,6 +342,23 @@ def create_box_plots(df):
     # increase spacing between subplots
     plt.subplots_adjust(wspace=1.5)
     plt.show()
+
+
+def create_line_plot(df):
+    import matplotlib.pyplot as plt
+
+    df_times = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                   "Ext. State Eq. LP Time", "Ext. State Eq. ILP Time"]]
+
+    df_times.plot(
+        kind='line'
+    )
+
+    plt.show()
+
+
+def create_line_plot_sorted(df):
+    pass
 
 
 def apply_trace(original_trace, trace, petri_net, initial_marking, final_marking, heuristic, parameters=None,
