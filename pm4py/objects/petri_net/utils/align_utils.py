@@ -37,6 +37,8 @@ this_options_lp["msg_lev"] = "GLP_MSG_OFF"
 this_options_lp["show_progress"] = False
 this_options_lp["presolve"] = "GLP_ON"
 this_options_lp["tm_lim"] = 60000
+this_options_lp["pp_tech"] = "GLP_PP_NONE"
+
 
 def search_path_among_sol(sync_net: PetriNet, ini: Marking, fin: Marking,
                           activated_transitions: List[PetriNet.Transition], skip=SKIP) -> Tuple[
@@ -455,7 +457,7 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
 
     # return solution vector z = x_0 + sum ( x_a + y_a )
     # return estimate h
-    #st_total = time.time()
+    # st_total = time.time()
 
     from cvxopt.modeling import op, variable, dot, sum, matrix
 
@@ -483,9 +485,9 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
         x[i] = variable(size=len_transitions, name="x_%s" % i)
 
     # objective function
-    #cost_transp = np.transpose(cost_vec)
+    # cost_transp = np.transpose(cost_vec)
 
-    #st_obj = time.time()
+    # st_obj = time.time()
 
     sum_x = x[0]
     for i in range(1, k + 1):
@@ -502,19 +504,19 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
 
     model = op(obj)
 
-    #et_obj = time.time()
-    #time_obj = et_obj - st_obj
+    # et_obj = time.time()
+    # time_obj = et_obj - st_obj
     # c1: marking eq., reach final marking from initial/current after combining all firing transitions of all x_a and y_a
     # was, wenn mittendrin berechnet wird? Trotzdem von initial marking?
 
-    #st_constr1 = time.time()
+    # st_constr1 = time.time()
 
     m_vec = incidence_matrix.encode_marking(marking)
-    #m_vec_2d = [m_vec[i:i + 1] for i in range(0, len(m_vec), 1)]
+    # m_vec_2d = [m_vec[i:i + 1] for i in range(0, len(m_vec), 1)]
     m_vec_2d = [m_vec[i:i + 1] for i in range(len_places)]
     m_matrix = matrix(m_vec_2d, (len_places, 1), tc='d')
 
-    #fin_vec_2d = [fin_vec[i:i + 1] for i in range(0, len(fin_vec), 1)]
+    # fin_vec_2d = [fin_vec[i:i + 1] for i in range(0, len(fin_vec), 1)]
     fin_vec_2d = [fin_vec[i:i + 1] for i in range(len_places)]
     fin_matrix = matrix(fin_vec_2d, (len_places, 1), tc='d')
 
@@ -529,11 +531,11 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
     constr1 = (m_matrix + m_a_matrix * x[0] + m_a_matrix * sums_transitions == fin_matrix)
     model.addconstraint(constr1)
 
-    #et_constr1 = time.time()
-    #time_constr1 = et_constr1 - st_constr1
+    # et_constr1 = time.time()
+    # time_constr1 = et_constr1 - st_constr1
 
     # c2: extended marking eq., after firing prefix of transitions, sufficient tokens available to fire first transition in y_a
-    #st_constr2 = time.time()
+    # st_constr2 = time.time()
 
     # consumption matrix is incidence matrix without positive entries
     consumption_matrix = np.minimum(incidence_matrix.a_matrix, 0)
@@ -560,8 +562,8 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
                                 <= m_matrix + m_a_matrix * x[0] + m_a_matrix * sum_transitions_subsequences_2 +
                                 consumption_matrix * y[a])
 
-    #et_constr2 = time.time()
-    #time_constr2 = et_constr2 - st_constr2
+    # et_constr2 = time.time()
+    # time_constr2 = et_constr2 - st_constr2
 
     # c3: x_a is natural number, relax to real value numbers
     for a in range(k + 1):
@@ -581,7 +583,7 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
     # how to get i-th transition of log moves?
     # ((t_trace.name, t_model.name), (t_trace.label, t_model.label))
 
-    #st_constr5 = time.time()
+    # st_constr5 = time.time()
 
     transitions = [t for t in incidence_matrix.transitions]
 
@@ -590,17 +592,17 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
             if transitions[t].label[0] != trace_division[a - 1][0]:
                 model.addconstraint(y[a][t] == 0)
 
-    #et_constr5 = time.time()
-    #time_constr5 = et_constr5 - st_constr5
+    # et_constr5 = time.time()
+    # time_constr5 = et_constr5 - st_constr5
 
     from cvxopt import solvers
     solvers.options['glpk'] = this_options_lp
 
-    #st_solve = time.time()
+    # st_solve = time.time()
     model.solve(solver='glpk')
 
-    #et_solve = time.time()
-    #time_solve = et_solve - st_solve
+    # et_solve = time.time()
+    # time_solve = et_solve - st_solve
     # prim_obj corresponds to underestimate h
     prim_obj = model.objective.value()
 
@@ -613,7 +615,7 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
 
         # solution vector as list of values
         points_list = np.array(x[0].value)
-        for a in range(1, k+1):
+        for a in range(1, k + 1):
             x_np = np.array(x[a].value)
             y_np = np.array(y[a].value)
             points_list = np.add(points_list, (np.add(x_np, y_np)))
@@ -658,14 +660,14 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
                     prim_obj = blas.dot(c, x)
 
                     # de-stack variables according to transitions
-                    #points_list = [0.0] * len_transitions
-                    #for i in range(size):
-                     #   rem = i % len_transitions
-                      #  points_list[rem] = points_list[rem] + x[i]
+                    # points_list = [0.0] * len_transitions
+                    # for i in range(size):
+                    #   rem = i % len_transitions
+                    #  points_list[rem] = points_list[rem] + x[i]
 
                     points_list = np.array(x)
                     points_list = points_list.reshape((-1, len_transitions))
-                    points_list = np.sum(points_list, axis =0)
+                    points_list = np.sum(points_list, axis=0)
                 else:
                     prim_obj = sys.maxsize
 
@@ -673,12 +675,12 @@ def __compute_exact_extended_state_equation_ilp(sync_net, a_matrix, h_cvx, g_mat
     else:
         points_list = [0.0] * len_transitions
 
-    #print("ilp_solved ", ilp_solved)
+    # print("ilp_solved ", ilp_solved)
 
-    #et_total = time.time()
-    #time_total = et_total - st_total
+    # et_total = time.time()
+    # time_total = et_total - st_total
 
-    #print("Time total",time_total)
+    # print("Time total",time_total)
 
     return prim_obj, points_list, ilp_solved
 
