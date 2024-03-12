@@ -173,7 +173,7 @@ def apply_all_heuristics(log, petri_net, initial_marking, final_marking, paramet
     return all_variants_alignments
 
 
-def create_data(log, petri_net, initial_marking, final_marking, variance, name_df, parameters=None,
+def create_data(log, petri_net, initial_marking, final_marking, variance, name_df, miner, parameters=None,
                 variant=DEFAULT_VARIANT):
     import pandas as pd
     from datetime import datetime
@@ -195,7 +195,7 @@ def create_data(log, petri_net, initial_marking, final_marking, variance, name_d
                                                      sys.maxsize)
 
     # timeout after ten minutes per case
-    max_align_time_case = 360
+    max_align_time_case = 180
     print("Max align time case", max_align_time_case)
 
     best_worst_cost = __get_best_worst_cost(petri_net, initial_marking, final_marking, variant, parameters)
@@ -212,8 +212,11 @@ def create_data(log, petri_net, initial_marking, final_marking, variance, name_d
     data = []
 
     count_trace = 0
+
+    len_var_tr = len(one_tr_per_var)
+
     for trace in one_tr_per_var:
-        print(count_trace)
+        print(name_df + " " + miner + " " + str(count_trace) + "/" + str(len_var_tr))
         count_trace = count_trace + 1
         data_per_trace = []
 
@@ -248,7 +251,11 @@ def create_data(log, petri_net, initial_marking, final_marking, variance, name_d
             elapsed_time_mean = np.sum(times_alignments) / variance
 
             if h in heuristics_lp:
-                num_lp.append(alignment["lp_solved"])
+                if not alignment == None:
+                    num_lp.append(alignment["lp_solved"])
+
+                else:
+                    num_lp.append("Timeout")
 
             data_per_trace.append(alignment)
             times.append(elapsed_time_mean)
@@ -264,7 +271,7 @@ def create_data(log, petri_net, initial_marking, final_marking, variance, name_d
                                    "State Eq. LP Solved LP", "State Eq. ILP Solved LP",
                                    "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
 
-        df.to_pickle(name_df + "_curr.pkl")
+        df.to_pickle(name_df + miner + "_curr.pkl")
 
     df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
                                      "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
@@ -288,6 +295,7 @@ def create_bar_plot(df):
 
     maxValIndex = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
                       "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
+       #               "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
     print(maxValIndex)
 
     count_no = 0
