@@ -1,6 +1,8 @@
 import pandas as pd
 from multiprocessing import Process, Pool
 import pm4py
+from pm4py.objects.petri_net.obj import PetriNet, Marking
+
 from pm4py.algo.conformance.alignments.petri_net import algorithm
 from pm4py.algo.conformance.alignments.petri_net import variants
 
@@ -10,19 +12,44 @@ def align(df, name_df, miner="alpha", noise_threshold=0.2):
     print('Test ' + name_df + " " + miner + " " + str(noise_threshold))
     # discover petri net
     print(name_df)
-    # if name_df == "prFm6":
-    #   pn, im, fm = pm4py.read_pnml("pm4py/data/prFm6.pnml")
+    if name_df == "prFm6":
+        pn, im, fm = pm4py.read_pnml("pm4py/data/prFm6.pnml")
+        fm = Marking()
+        for p in pn.places:
+            if p.name == 'n281':
+                n281 = p
+
+        fm[n281] = 1
+        miner = "no"
 
     #  print(im, fm)
     # name_df = "prFm6"
 
-    # elif name_df == "prGm6":
-    #   pn, im, fm = pm4py.read_pnml("pm4py/data/prGm6.pnml")
+    elif name_df == "prGm6":
+        pn, im, fm = pm4py.read_pnml("pm4py/data/prGm6.pnml")
+        fm = Marking()
+        for p in pn.places:
+            if p.name == 'n326':
+                n326 = p
+        fm[n326] = 1
+        miner = "no"
     # name_df = "prGm6"
     #  print(im, fm)
-    if miner == "alpha":
+    elif miner == "alpha":
         # alpha miner
         pn, im, fm = pm4py.discover_petri_net_alpha(df)
+
+        # TODO fm = []
+        if len(fm) == 0:
+            print("Empty final marking, create new final marking.")
+            fm = Marking()
+
+            for p in pn.places:
+                if len(p.out_arcs) == 0:
+                    final_place = p
+
+            fm[final_place] = 1
+
     else:
         # inductive miner
         pn, im, fm = pm4py.discover_petri_net_inductive(df, noise_threshold)
@@ -66,8 +93,8 @@ def test_process():
 
 
 if __name__ == "__main__":
-    #prFm6 = pm4py.read_xes("pm4py/data/prFm6.xes")
-    #prGm6 = pm4py.read_xes("pm4py/data/prGm6.xes")
+    prFm6 = pm4py.read_xes("pm4py/data/prFm6.xes")
+    prGm6 = pm4py.read_xes("pm4py/data/prGm6.xes")
 
     #df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_broken.csv', sep=';'),
      #                                    case_id='case:concept:name', activity_key='concept:name',
@@ -78,28 +105,28 @@ if __name__ == "__main__":
     #international_declaration = pm4py.read_xes("pm4py/data/InternationalDeclarations.xes")
     #request = pm4py.read_xes("pm4py/data/RequestForPayment.xes")
 
-    domestic = pm4py.read_xes("pm4py/data/DomesticDeclarations.xes")
+    #domestic = pm4py.read_xes("pm4py/data/DomesticDeclarations.xes")
 
     #data = [prepaid, permit]
 
     #data = [df_problems]
 
-    #data = [prFm6, prGm6]
+    data = [prFm6, prGm6]
     #data = [request, international_declaration]
 
-    data = [domestic]
+    #data = [domestic]
     procs = []
 
     for d in data:
         name_df = get_var_name(d)
         proc_alpha = Process(target=align, args=[d, name_df])
-        proc_im = Process(target=align, args=[d, name_df, "inductive"])
+        #proc_im = Process(target=align, args=[d, name_df, "inductive"])
 
         procs.append(proc_alpha)
-        procs.append(proc_im)
+        #procs.append(proc_im)
 
         proc_alpha.start()
-        proc_im.start()
+        #proc_im.start()
 
     for proc in procs:
         proc.join()
