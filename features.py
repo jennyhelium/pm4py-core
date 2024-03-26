@@ -9,6 +9,8 @@ df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_bro
                                      timestamp_key='time:timestamp')
 pn, im, fm = pm4py.discover_petri_net_inductive(df_problems)
 
+trace = ['examine thoroughly', 'check ticket', 'examine thoroughly', 'decide', 'reject request']
+
 
 def count_places(net):
     places = net.places
@@ -69,9 +71,9 @@ def degree_ratio(pn, use_place=True, direction="in"):
     else:
         len_el = len(pn.transitions)
 
-    min, max, mean = degree(pn, use_place, direction)
+    min_degree, max_degree, mean_degree = degree(pn, use_place, direction)
 
-    return min / len_el, max / len_el, mean / len_el
+    return min_degree / len_el, max_degree / len_el, mean_degree / len_el
 
 
 def choice(pn):
@@ -83,6 +85,7 @@ def choice(pn):
 
     ratio = sum_degree / len(pn.places)
     return sum_degree, ratio
+
 
 def parallelism(pn):
     sum_degree = 0
@@ -98,7 +101,8 @@ def parallelism(pn):
 
 
 def trace_ratio(pn, trace):
-    t = [x['concept:name'] for x in trace]
+    #t = [x['concept:name'] for x in trace]
+    t = trace
     len_trace = len(t)
 
     num_transitions = len(pn.transitions)
@@ -137,7 +141,8 @@ def model_duplicates(pn):
             counts.append(count_t)
             visited.append(t)
 
-    result = filter(lambda x: x > 1, counts)
+    #result = filter(lambda x: x > 1, counts)
+    result = [x for x in counts if x > 1]
 
     num_duplicates = len(result)
 
@@ -147,7 +152,8 @@ def model_duplicates(pn):
 
 
 def trace_loop(trace):
-    t = [x['concept:name'] for x in trace]
+    #t = [x['concept:name'] for x in trace]
+    t = trace
 
     visited = []
     counts = []
@@ -158,19 +164,28 @@ def trace_loop(trace):
             counts.append(count_i)
             visited.append(i)
 
-    result = filter(lambda x: x > 1, counts)
+    #result = filter(lambda x: x > 1, counts)
+    result = [x for x in counts if x > 1]
 
     num_repetitions = len(result)
 
-    max_repetitions = max(result)
+    is_empty = False
 
-    mean_repetitions = mean(result)
+    if len(result) == 0:
+        is_empty = True
 
-    sum_repetitions = sum(result)
+    if is_empty:
+        max_repetitions = 0
+        mean_repetitions = 0
+        sum_repetitions = 0
+    else:
+        max_repetitions = max(result)
+        mean_repetitions = mean(result)
+        sum_repetitions = sum(result)
 
     ratio = num_repetitions / len(trace)
 
-    return (num_repetitions, ratio, max_repetitions, max_repetitions/ len(trace),
+    return (num_repetitions, ratio, max_repetitions, max_repetitions / len(trace),
             mean_repetitions, mean_repetitions / len(trace), sum_repetitions, sum_repetitions / len(trace))
 
 
@@ -200,11 +215,15 @@ def matching_loop(pn, trace):
     if trans_no_in_arc > 0:
         loop_model = True
 
+    return loop_model and loop_trace
+
 
 def matching_labels(pn, trace):
-    t = [x['concept:name'] for x in trace]
+    #t = [x['concept:name'] for x in trace]
+    t = trace
 
     transitions = pn.transitions
+    labels_model = [t.label for t in transitions if t.label is not None]
 
     match = []
     match_count_trace = 0
@@ -212,14 +231,15 @@ def matching_labels(pn, trace):
     match_count_model = 0
 
     for i in t:
-        if i in transitions:
+        if i in labels_model:
             match_count_trace = match_count_trace + 1
 
-    for i in transitions:
+    for i in labels_model:
         if i in t:
             match_count_model = match_count_model + 1
 
-    return match_count_trace, match_count_trace / len(t), match_count_model, match_count_model / len(transitions)
+    return match_count_trace, match_count_trace / len(t), match_count_model, match_count_model / len(labels_model)
+
 
 
 print(degree(pn))
@@ -228,6 +248,12 @@ print(degree(pn, False))
 print(degree(pn, False, "out"))
 
 print(degree_ratio(pn))
-print(degree_ratio(pn, direction="out"))
-print(degree_ratio(pn, False))
-print(degree_ratio(pn, False, "out"))
+print(choice(pn))
+print(parallelism(pn))
+print(trace_ratio(pn, trace))
+print(model_silent_transitions(pn))
+print(model_duplicates(pn))
+print(transitions_no_in_arc(pn))
+print(trace_loop(trace))
+print(matching_loop(pn, trace))
+print(matching_labels(pn, trace))
