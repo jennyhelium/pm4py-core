@@ -173,7 +173,7 @@ def apply_all_heuristics(log, petri_net, initial_marking, final_marking, paramet
     return all_variants_alignments
 
 
-def create_data(log, petri_net, initial_marking, final_marking, variance, name_df, miner, parameters=None,
+def create_data(log, petri_net, initial_marking, final_marking, variance, name_df, miner, noise, parameters=None,
                 variant=DEFAULT_VARIANT):
     import pandas as pd
     from datetime import datetime
@@ -217,7 +217,6 @@ def create_data(log, petri_net, initial_marking, final_marking, variance, name_d
 
     for trace in one_tr_per_var:
         print(name_df + " " + miner + " " + str(count_trace) + "/" + str(len_var_tr))
-        count_trace = count_trace + 1
         data_per_trace = []
 
         t = [x['concept:name'] for x in trace]
@@ -260,6 +259,56 @@ def create_data(log, petri_net, initial_marking, final_marking, variance, name_d
             data_per_trace.append(alignment)
             times.append(elapsed_time_mean)
 
+        # if timeout reached for every heuristic, re-compute with higher timeout
+        timeout_reached = [False if j < (max_align_time_case - 1) else True for j in times]
+
+        all_timeout = all(timeout_reached)
+
+        if all_timeout:
+            higher_timeout = this_max_align_time * 4
+            this_max_align_time = min(higher_timeout, (max_align_time - (time.time() - start_time)) * 0.5)
+            parameters[Parameters.PARAM_MAX_ALIGN_TIME_TRACE] = this_max_align_time
+
+            times = []
+            num_lp = []
+
+            trace = one_tr_per_var[count_trace]
+            t = [x['concept:name'] for x in trace]
+
+            data_per_trace = []
+            data_per_trace.append(t)
+            data_per_trace = data_per_trace + [petri_net, initial_marking, final_marking]
+
+            print("Re-compute alignments with higher timeout")
+            print(name_df + " " + miner + " " + str(count_trace) + "/" + str(len_var_tr))
+            print(t)
+
+            for h in heuristics:
+                print(h)
+
+                times_alignments = []
+                for i in range(variance):
+                    start_time_alignment = time.time()
+                    alignment = apply_trace(t, trace, petri_net, initial_marking, final_marking, h,
+                                            parameters=copy(parameters),
+                                            variant=variant)
+                    end_time_alignment = time.time()
+                    elapsed_time = end_time_alignment - start_time_alignment
+
+                    times_alignments.append(elapsed_time)
+
+                elapsed_time_mean = np.sum(times_alignments) / variance
+
+                if h in heuristics_lp:
+                    if not alignment == None:
+                        num_lp.append(alignment["lp_solved"])
+
+                    else:
+                        num_lp.append("Timeout")
+
+                data_per_trace.append(alignment)
+                times.append(elapsed_time_mean)
+
         data_per_trace = data_per_trace + times + num_lp
         data.append(data_per_trace)
 
@@ -271,7 +320,9 @@ def create_data(log, petri_net, initial_marking, final_marking, variance, name_d
                                    "State Eq. LP Solved LP", "State Eq. ILP Solved LP",
                                    "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
 
-        df.to_pickle(name_df + miner + "_curr.pkl")
+        df.to_pickle(name_df + "_" + miner + "_" + str(noise) + "_curr.pkl")
+
+        count_trace = count_trace + 1
 
     df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
                                      "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
