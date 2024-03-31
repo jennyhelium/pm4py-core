@@ -35,6 +35,8 @@ from pm4py.util import typing, constants
 import pandas as pd
 import numpy as np
 
+from multiprocessing import Pool
+
 
 class Variants(Enum):
     VERSION_STATE_EQUATION_A_STAR = variants.state_equation_a_star
@@ -346,7 +348,7 @@ def create_bar_plot(df):
 
     maxValIndex = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
                       "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
-       #               "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
+    #               "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
     print(maxValIndex)
 
     count_no = 0
@@ -499,6 +501,249 @@ def apply_trace(original_trace, trace, petri_net, initial_marking, final_marking
         ali["bwc"] = ltrace_bwc
 
     return ali
+
+
+def apply_trace_timed(original_trace, trace, petri_net, initial_marking, final_marking, heuristic, parameters=None,
+                      variant=DEFAULT_VARIANT):
+    """
+    apply alignments to a trace
+    Parameters
+    -----------
+    original_trace
+    trace
+        :class:`pm4py.log.log.Trace` trace of events
+    petri_net
+        :class:`pm4py.objects.petri.petrinet.PetriNet` the model to use for the alignment
+    initial_marking
+        :class:`pm4py.objects.petri.petrinet.Marking` initial marking of the net
+    final_marking
+        :class:`pm4py.objects.petri.petrinet.Marking` final marking of the net
+    variant
+        selected variant of the algorithm, possible values: {\'Variants.VERSION_STATE_EQUATION_A_STAR, Variants.VERSION_DIJKSTRA_NO_HEURISTICS \'}
+    parameters
+        :class:`dict` parameters of the algorithm, for key \'state_equation_a_star\':
+            Parameters.ACTIVITY_KEY -> Attribute in the log that contains the activity
+            Parameters.PARAM_MODEL_COST_FUNCTION ->
+            mapping of each transition in the model to corresponding synchronous costs
+            Parameters.PARAM_SYNC_COST_FUNCTION ->
+            mapping of each transition in the model to corresponding model cost
+            Parameters.PARAM_TRACE_COST_FUNCTION ->
+            mapping of each index of the trace to a positive cost value
+    Returns
+    -----------
+    alignment
+        :class:`dict` with keys **alignment**, **cost**, **visited_states**, **queued_states** and
+        **traversed_arcs**
+        The alignment is a sequence of labels of the form (a,t), (a,>>), or (>>,t)
+        representing synchronous/log/model-moves.
+    """
+    if parameters is None:
+        parameters = copy({PARAMETER_CONSTANT_ACTIVITY_KEY: DEFAULT_NAME_KEY})
+
+    variant = __variant_mapper(variant)
+    parameters = copy(parameters)
+    best_worst_cost = exec_utils.get_param_value(Parameters.BEST_WORST_COST_INTERNAL, parameters,
+                                                 __get_best_worst_cost(petri_net, initial_marking, final_marking,
+                                                                       variant, parameters))
+
+    start_time_alignment = time.time()
+
+    ali = exec_utils.get_variant(variant).apply(original_trace, trace, petri_net, initial_marking, final_marking,
+                                                heuristic,
+                                                parameters=parameters)
+
+    end_time_alignment = time.time()
+    elapsed_time = end_time_alignment - start_time_alignment
+
+    trace_cost_function = exec_utils.get_param_value(Parameters.PARAM_TRACE_COST_FUNCTION, parameters, [])
+    # Instead of using the length of the trace, use the sum of the trace cost function
+    trace_cost_function_sum = sum(trace_cost_function)
+
+    if ali is not None and best_worst_cost is not None:
+        ltrace_bwc = trace_cost_function_sum + best_worst_cost
+
+        fitness_num = ali['cost'] // align_utils.STD_MODEL_LOG_MOVE_COST
+        fitness_den = ltrace_bwc // align_utils.STD_MODEL_LOG_MOVE_COST
+        fitness = 1 - fitness_num / fitness_den if fitness_den > 0 else 0
+
+        # other possibility: avoid integer division but proceed to rounding.
+        # could lead to small differences with respect to the adopted-since-now fitness
+        # (since it is rounded)
+
+        """
+        initial_trace_cost_function = exec_utils.get_param_value(Parameters.PARAM_TRACE_COST_FUNCTION, parameters, None)
+        initial_model_cost_function = exec_utils.get_param_value(Parameters.PARAM_MODEL_COST_FUNCTION, parameters, None)
+        initial_sync_cost_function = exec_utils.get_param_value(Parameters.PARAM_SYNC_COST_FUNCTION, parameters, None)
+        uses_standard_cost_function = initial_trace_cost_function is None and initial_model_cost_function is None and \
+                                    initial_sync_cost_function is None
+
+        fitness = 1 - ali['cost'] / ltrace_bwc if ltrace_bwc > 0 else 0
+        fitness_round_digits = exec_utils.get_param_value(Parameters.FITNESS_ROUND_DIGITS, parameters, 3)
+        fitness = round(fitness, fitness_round_digits)
+        """
+
+        ali["fitness"] = fitness
+        # returning also the best worst cost, for log fitness computation
+        ali["bwc"] = ltrace_bwc
+
+    return ali, elapsed_time
+
+
+def worker(heuristic, t, trace, petri_net, initial_marking, final_marking, parameters):
+    alignment, elapsed_time = apply_trace_timed(t, trace, petri_net, initial_marking, final_marking, heuristic,
+                                                parameters=parameters, variant=VERSION_A_STAR)
+    return alignment, elapsed_time, heuristic
+
+
+def worker2(h, t, trace, petri_net, initial_marking, final_marking, params):
+    print(h)
+    return h
+
+
+def collect_result(val):
+    # print(f"writing result {val}")
+    return result.append(val)
+
+
+result = []
+
+
+def create_data_pool(log, petri_net, initial_marking, final_marking, variance, name_df, miner, noise, parameters=None,
+                     variant=DEFAULT_VARIANT):
+    import pandas as pd
+    from datetime import datetime
+
+    if parameters is None:
+        parameters = dict()
+
+    if solver.DEFAULT_LP_SOLVER_VARIANT is not None:
+        if not check_soundness.check_easy_soundness_net_in_fin_marking(petri_net, initial_marking, final_marking):
+            print("trying to apply alignments on a Petri net that is not a easy sound net!!")
+            return pd.DataFrame([])
+
+    variant = __variant_mapper(variant)
+
+    start_time = time.time()
+    max_align_time = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME, parameters,
+                                                sys.maxsize)
+    max_align_time_case = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME_TRACE, parameters,
+                                                     sys.maxsize)
+
+    # timeout after ten minutes per case
+    max_align_time_case = 180
+    print("Max align time case", max_align_time_case)
+
+    best_worst_cost = __get_best_worst_cost(petri_net, initial_marking, final_marking, variant, parameters)
+    variants_idxs, one_tr_per_var = __get_variants_structure(log, parameters)
+    # progress = __get_progress_bar(len(one_tr_per_var), parameters)
+    parameters[Parameters.BEST_WORST_COST_INTERNAL] = best_worst_cost
+
+    heuristics = ["NO_HEURISTIC", "NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
+                  "EXTENDED_STATE_EQUATION_ILP"]
+    heuristics_lp = ["STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
+                     "EXTENDED_STATE_EQUATION_ILP"]
+
+    # [trace, petri net, init_marking, final_marking, ]
+    data = []
+
+    count_trace = 0
+
+    len_var_tr = len(one_tr_per_var)
+
+    import psutil
+    pool = Pool(processes=np.max([psutil.cpu_count(logical=False) - 2, 1]))
+
+    for trace in one_tr_per_var:
+
+        timeout_time = max_align_time_case
+        while True:
+            result_final = [[] for i in range(len(heuristics))]
+
+            print(name_df + " " + miner + " " + str(count_trace) + "/" + str(len_var_tr))
+            data_per_trace = []
+
+            t = [x['concept:name'] for x in trace]
+
+            print(t)
+
+            data_per_trace.append(t)
+            data_per_trace = data_per_trace + [petri_net, initial_marking, final_marking]
+
+            this_max_align_time = min(max_align_time_case, (max_align_time - (time.time() - start_time)) * 0.5)
+            parameters[Parameters.PARAM_MAX_ALIGN_TIME_TRACE] = this_max_align_time
+            # apply each heuristic to trace and save alignment and computation time
+
+            params = copy(parameters)
+            j = 0
+            for h in heuristics:
+                print(h)
+                for i in range(variance):
+                    p = pool.apply_async(worker, args=(h, t, trace, petri_net, initial_marking, final_marking, params),
+                                         callback=collect_result)
+                    result_final[j].append(p)
+                j += 1
+
+            times = []
+            num_lp = []
+            for f_res in result_final:
+                times_alignments = []
+                try:
+                    for i in range(variance):
+                        r, time_alignment, heuristic = f_res[i].get(timeout=timeout_time)
+                        # print(t, time_alignment)
+                        times_alignments.append(time_alignment)
+
+                    # print(times_alignments)
+                    data_per_trace.append(r)  # currently, we just take the last alignment
+                    # TODO: maybe take the alignment for the fastest execution?
+                    times.append(np.average(times_alignments))
+                    if heuristic in heuristics_lp:
+                        if r is not None:
+                            num_lp.append(r["lp_solved"])
+                        else:
+                            num_lp.append("Result None")
+
+                except TimeoutError:
+                    num_lp.append("Timeout")
+                    times.append(max_align_time_case)
+                    data_per_trace.append(None)
+
+            if not all([x == "Timeout" for x in num_lp]):
+                break
+            timeout_time += 300
+            if timeout_time > 780:
+                break
+
+        data_per_trace = (data_per_trace + times + num_lp)
+        data.append(data_per_trace)
+
+        df = pd.DataFrame(data,
+                          columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
+                                   "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
+                                   "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                                   "Ext. Eq. LP Time", "Ext. Eq. ILP Time", "State Eq. LP Solved LP",
+                                   "State Eq. ILP Solved LP","Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
+
+        df.to_pickle(name_df + "_" + miner + "_" + str(noise) + "_curr.pkl")
+
+        count_trace = count_trace + 1
+    pool.close()
+
+    df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
+                                     "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
+                                     "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                                     "Ext. Eq. LP Time", "Ext. Eq. ILP Time", "State Eq. LP Solved LP",
+                                     "State Eq. ILP Solved LP", "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
+
+    # create_bar_plot(df)
+    # create_box_plots(df)
+
+    date_time = datetime.now()
+    format_date_time = '%Y-%m-%d %H:%M:%S'
+    string = date_time.strftime(format_date_time)
+
+    df.to_pickle("results/" + name_df + string + ".pkl")
+    return df
 
 
 def apply_log(log, petri_net, initial_marking, final_marking, parameters=None, variant=DEFAULT_VARIANT):
