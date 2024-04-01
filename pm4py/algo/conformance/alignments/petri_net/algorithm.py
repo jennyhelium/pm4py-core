@@ -651,7 +651,7 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
     len_var_tr = len(one_tr_per_var)
 
     import psutil
-    pool = Pool(processes=np.max([psutil.cpu_count(logical=False) - 2, 1]))
+    pool = Pool(processes=np.max([psutil.cpu_count(logical=False) - 3, 1]))
 
     for trace in one_tr_per_var:
 
@@ -669,8 +669,8 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
             data_per_trace.append(t)
             data_per_trace = data_per_trace + [petri_net, initial_marking, final_marking]
 
-            this_max_align_time = min(max_align_time_case, (max_align_time - (time.time() - start_time)) * 0.5)
-            parameters[Parameters.PARAM_MAX_ALIGN_TIME_TRACE] = this_max_align_time
+            this_max_align_time = min(timeout_time, (max_align_time - (time.time() - start_time)) * 0.5)
+            parameters[Parameters.PARAM_MAX_ALIGN_TIME_TRACE] = this_max_align_time - 0.1 * timeout_time
             # apply each heuristic to trace and save alignment and computation time
 
             params = copy(parameters)
@@ -683,6 +683,7 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
                     result_final[j].append(p)
                 j += 1
 
+            alignments = []
             times = []
             num_lp = []
             for f_res in result_final:
@@ -694,7 +695,7 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
                         times_alignments.append(time_alignment)
 
                     # print(times_alignments)
-                    data_per_trace.append(r)  # currently, we just take the last alignment
+                    alignments.append(r)  # currently, we just take the last alignment
                     # TODO: maybe take the alignment for the fastest execution?
                     times.append(np.average(times_alignments))
                     if heuristic in heuristics_lp:
@@ -703,18 +704,19 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
                         else:
                             num_lp.append("Result None")
 
-                except TimeoutError:
-                    num_lp.append("Timeout")
+                except:
                     times.append(max_align_time_case)
-                    data_per_trace.append(None)
+                    alignments.append(None)
+                    if len(times) > 2 and len(num_lp) < 4:
+                        num_lp.append("Timeout")
 
-            if not all([x == "Timeout" for x in num_lp]):
+            if not all([x is None for x in alignments]):
                 break
             timeout_time += 300
             if timeout_time > 780:
                 break
 
-        data_per_trace = (data_per_trace + times + num_lp)
+        data_per_trace = (data_per_trace + alignments + times + num_lp)
         data.append(data_per_trace)
 
         df = pd.DataFrame(data,
@@ -722,7 +724,7 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
                                    "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
                                    "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
                                    "Ext. Eq. LP Time", "Ext. Eq. ILP Time", "State Eq. LP Solved LP",
-                                   "State Eq. ILP Solved LP","Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
+                                   "State Eq. ILP Solved LP", "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
 
         df.to_pickle(name_df + "_" + miner + "_" + str(noise) + "_curr.pkl")
 
