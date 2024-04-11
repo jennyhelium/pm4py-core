@@ -10,7 +10,7 @@ def time_with_optimal_heuristics(df):
                 "Ext. Eq. ILP Time"]].min(axis=1)
 
     print("Time with optimal heuristics: " + str(times.sum()))
-    return times.sum()
+    return round(times.sum(), 2)
 
 
 def time_using_one_heuristic(df):
@@ -20,7 +20,7 @@ def time_using_one_heuristic(df):
     times = []
 
     for h in heuristics:
-        times.append(df[h].sum())
+        times.append(round(df[h].sum(), 2))
 
     return times
 
@@ -28,12 +28,19 @@ def time_using_one_heuristic(df):
 def lps_using_one_heuristic(df):
     h_lps = ["State Eq. LP Solved LP", "State Eq. ILP Solved LP", "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"]
 
+    # filter out timeouts
+    list_drop = ["Timeout", "Result None"]
     lps = [0, 0]
+
+    for h in h_lps:
+        df = df[df[h].isin(list_drop) == False]
 
     for h in h_lps:
         lps.append(df[h].sum())
 
     return lps
+
+
 def lps_optimal_heuristics(df, index=None):
     if index is None:
         min_index = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
@@ -126,10 +133,11 @@ def states_optimal_heuristics(df, visited, index=None):
             opt_alignment = row["Ext. Eq. ILP"]
 
         # visited = True: visited states, else queued states
-        if visited:
-            num_states += opt_alignment["visited_states"]
-        else:
-            num_states += opt_alignment["queued_states"]
+        if opt_alignment is not None:
+            if visited:
+                num_states += opt_alignment["visited_states"]
+            else:
+                num_states += opt_alignment["queued_states"]
 
         row_num += 1
 
@@ -146,10 +154,13 @@ def states_one_heuristic(df, visited):
         row = df.iloc[ind, :]
 
         for i in range(len(heuristics)):
-            if visited:
-                num_states[i].append(row[heuristics[i]]["visited_states"])
+            if row[heuristics[i]] is not None:
+                if visited:
+                    num_states[i].append(row[heuristics[i]]["visited_states"])
+                else:
+                    num_states[i].append(row[heuristics[i]]["queued_states"])
             else:
-                num_states[i].append(row[heuristics[i]]["queued_states"])
+                num_states[i].append(0)
 
     num_states = np.sum(num_states, axis=1)
 
@@ -246,51 +257,72 @@ def time_using_model(df, predictions):
 
         row_num += 1
 
-    return time
+    return round(time, 2)
 
 
 def plot_multiple_bars(optimal, model, ls_heuristics, y_label, plot_title):
-    x = ["No Heuristic", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
-    len_x = len(x)
-    y_optimal = [optimal for i in range(len_x)]
-    model = [model for i in range(len_x)]
+    x = ["Optimal", "Random", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+
+    #y_optimal = [optimal for i in range(len_x)]
+
+    #y_model = [model for i in range(len_x)]
     z_others = ls_heuristics
 
-    if optimal == 0:
-        # absolute difference
-        differences_model = [z - optimal for z in model]
-        differences_heuristics = [z - optimal for z in z_others]
-    else:  # percentage difference
-        differences_model = [round(z / optimal, 2) for z in model]
-        differences_heuristics = [round(z / optimal, 2) for z in z_others]
+    values = []
+    values.append(optimal)
 
+    if isinstance(model, list):
+        for i in model:
+            values.append(i)
+        x = ["Optimal", "Random", "Model", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+    else:
+        values.append(model)
+    values = values + ls_heuristics
+
+    #if optimal == 0:
+        #absolute difference
+        #differences_model = [z - optimal for z in y_model]
+        #differences_heuristics = [z - optimal for z in z_others]
+    #else:  # percentage difference
+        #differences_model = [round(z / optimal, 2) for z in y_model]
+        #differences_heuristics = [round(z / optimal, 2) for z in z_others]
+    len_x = len(x)
     x_axis = np.arange(len_x)
 
-    bar_width = 0.2
+    bar_width = 0.25
 
     br1 = x_axis
-    br2 = [x + bar_width for x in br1]
-    br3 = [x + bar_width for x in br2]
+    # br2 = [x + bar_width for x in br1]
+    # br3 = [x + bar_width for x in br2]
 
-    plt.bar(br1, y_optimal, bar_width, label="optimal")
-    plt.bar(br2, model, bar_width, label="model")
-    plt.bar(br3, z_others, bar_width, label="other heuristics")
+    plt.bar(br1, values, bar_width)
+    # plt.bar(br2, y_model, bar_width, label="model")
+    # plt.bar(br3, z_others, bar_width, label="other heuristics")
+
+    plt.axhline(y=optimal, color="green", linestyle="dashed", label="Optimal")
+    if isinstance(model, list):
+        plt.axhline(y=model[0], color="r", linestyle="dashed", label="Random")
+        plt.axhline(y=model[1], color="b", linestyle="dashed", label="ML")
+    else:
+        plt.axhline(y=model, color="r", linestyle="dashed", label="Random")
 
     for i in range(len_x):
-        plt.text(i + 1 * bar_width, model[i], differences_model[i], ha="center")
-        plt.text(i + 2 * bar_width, z_others[i], differences_heuristics[i], ha="center")
+        plt.text(i, values[i] + 0.05, round(values[i], 3), ha="center")
+    #   plt.text(i + 1 * bar_width, y_model[i], differences_model[i], ha="center")
+    #  plt.text(i + 2 * bar_width, z_others[i], differences_heuristics[i], ha="center")
 
-    plt.xticks([r + bar_width for r in range(len_x)], x)
+    plt.xticks([r for r in range(len_x)], x)
     plt.xlabel("Comparison of optimal heuristics and only using one heuristic")
     plt.ylabel(y_label)
     plt.title(plot_title)
     plt.legend()
+    plt.savefig("visualization/" + plot_title + ".png")
     plt.show()
 
 
 if __name__ == "__main__":
 
-    df = pd.read_pickle("results/italian_alpha_0.2_3.pkl")
+    df = pd.read_pickle("results/road_inductive_0_3.pkl")
     len_df = len(df.index)
     timeout = 180
 
@@ -366,7 +398,7 @@ if __name__ == "__main__":
 
     # random model
     labels = ["Naive", "No Heuristic", "State Eq. LP", "State Eq. ILP",
-              #"Ext. Eq. LP", "Ext. Eq. ILP"
+              # "Ext. Eq. LP", "Ext. Eq. ILP"
               ]
     random_predictions = []
     for i in labels:
@@ -380,7 +412,7 @@ if __name__ == "__main__":
                 break
     random.seed(0)
     random.shuffle(random_predictions)
-    #random_predictions = random.choices(labels, k=len(df.index), weights=[1, 1, 1, 1, 0, 0])
+    # random_predictions = random.choices(labels, k=len(df.index), weights=[1, 1, 1, 1, 0, 0])
     set_predictions = set(random_predictions)
 
     random_distribution = []
@@ -394,12 +426,13 @@ if __name__ == "__main__":
     random_visited_states = states_optimal_heuristics(df, True, random_idx)
     random_queued_states = states_optimal_heuristics(df, False, random_idx)
 
-
     print("Random guessing: ", random_time)
 
     plot_multiple_bars(optimal_time, random_time, times_one_heuristic, "Time in seconds", "Computation times")
-    plot_multiple_bars(optimal_timeouts, random_timeouts, timeouts_heuristics, "Number of timeouts", plot_title="Timeouts")
+    plot_multiple_bars(optimal_timeouts, random_timeouts, timeouts_heuristics, "Number of timeouts",
+                       plot_title="Timeouts")
     plot_multiple_bars(optimal_lps, random_lps, lps_one_heuristic, "Number of solved lps", "Solved LPs")
-    plot_multiple_bars(optimal_visited_states, random_visited_states, visited_states_heuristic, "Number of visited states", "Visited States")
-    plot_multiple_bars(optimal_queued_states, random_queued_states, queued_states_heuristic, "Number of queued states", "Queued States")
-
+    plot_multiple_bars(optimal_visited_states, random_visited_states, visited_states_heuristic,
+                       "Number of visited states", "Visited States")
+    plot_multiple_bars(optimal_queued_states, random_queued_states, queued_states_heuristic, "Number of queued states",
+                       "Queued States")
