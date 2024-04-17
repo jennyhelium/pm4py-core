@@ -35,9 +35,9 @@ def distribution_winners(df, timeout):
                 count_state_lp = count_state_lp + 1
             elif i == "State Eq. ILP Time":
                 count_state_ilp = count_state_ilp + 1
-            elif i == "Ext. Eq. LP Time":
+            elif i == "Ext. Eq. LP Time" or i == "Ext. State Eq. LP Time":
                 count_ext_lp = count_ext_lp + 1
-            elif i == "Ext. Eq. ILP Time":
+            elif i == "Ext. Eq. ILP Time" or i == "Ext. State Eq. ILP Time":
                 count_ext_ilp = count_ext_ilp + 1
 
         row_num = row_num + 1
@@ -48,17 +48,19 @@ def distribution_winners(df, timeout):
 def create_sunburst_plot(df, timeout):
     count_no, count_naive, count_state_lp, count_state_ilp, count_ext_lp, count_ext_ilp = distribution_winners(df,
                                                                                                                timeout)
-    data = dict(value=[count_no, count_naive, count_state_lp, count_state_ilp, count_ext_lp, count_ext_ilp],
-                heuristic=["No Heuristic", "Naive", "State Equation", "State Equation", "Extended State Eq.",
-                           "Extended State Eq."],
-                parent=[None, None, "State Eq. LP", "State Eq. ILP", "Ext. LP", "Ext. ILP"]
-                )
+    data_curr = dict(value=[count_no, count_naive, count_state_lp, count_state_ilp, count_ext_lp, count_ext_ilp],
+                     heuristic=["No Heuristic", "Naive", "State Equation", "State Equation", "Extended State Eq.",
+                                "Extended State Eq."],
+                     parent=[None, None, "State Eq. LP", "State Eq. ILP", "Ext. LP", "Ext. ILP"]
+                     )
 
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(data_curr)
 
     print(df)
 
-    fig = px.sunburst(df, path=["heuristic", "parent"], values="value")
+    fig = px.sunburst(df, path=["heuristic", "parent"], values="value",color="heuristic",
+                      color_discrete_map={"State Equation": "#636EFA", "No Heuristic": "red", "Naive": "#00CC96",
+                                          "Extended State Eq.": "#FFA15A"})
     fig.show()
 
 
@@ -112,9 +114,9 @@ def create_line_plot(df):
     plt.show()
 
 
-data = pd.read_pickle("results/italian_alpha_0.2_3.pkl")
+# data = pd.read_pickle("results/domestic_filtered_inductive_0_3.pkl")
 
-# data = pd.read_pickle("results/road_heuristic_3.pkl")
+data = pd.read_pickle("results/road_heuristic_3.pkl")
 # data = pd.read_pickle("permit_inductive_0,2_curr.pkl")
 
 # data = pd.read_pickle("results/prepaid2024-03-08 00:24:01.pkl")
@@ -123,6 +125,7 @@ data = pd.read_pickle("results/italian_alpha_0.2_3.pkl")
 # data = pd.read_pickle("results/domestic_inductive_3.pkl")
 # data = pd.read_pickle("permit_curr.pkl")
 # data = pd.read_pickle("results/road_im_2_noise(0.2)_2024-02-24 08:59:45.pkl")
+
 create_sunburst_plot(data, 180)
 create_bar_plot(data, 180)
 create_line_plot(data)
