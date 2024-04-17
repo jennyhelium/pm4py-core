@@ -146,7 +146,10 @@ def model_duplicates(pn):
 
     num_duplicates = len(result)
 
-    ratio = num_duplicates / len(labels)
+    if len(labels) == 0:
+        ratio  = 0
+    else:
+        ratio = num_duplicates / len(labels)
 
     return num_duplicates, ratio
 
@@ -238,7 +241,11 @@ def matching_labels(pn, trace):
         if i in t:
             match_count_model = match_count_model + 1
 
-    return match_count_trace, match_count_trace / len(t), match_count_model, match_count_model / len(labels_model)
+    if len(labels_model) == 0:
+        ratio = 0
+    else:
+        ratio = match_count_model/len(labels_model)
+    return match_count_trace, match_count_trace / len(t), match_count_model, ratio
 
 
 
