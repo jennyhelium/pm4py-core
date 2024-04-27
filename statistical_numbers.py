@@ -4,6 +4,8 @@ import random
 import matplotlib.pyplot as plt
 import math
 
+import features
+
 
 def time_with_optimal_heuristics(df):
     times = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time", "Ext. Eq. LP Time",
@@ -52,34 +54,39 @@ def lps_optimal_heuristics(df, index=None):
 
     for i in min_index:
         row = df.iloc[row_num, :]
+        curr = 0
 
         if i == "State Eq. LP Time":
-            num_lps = num_lps + row["State Eq. LP Solved LP"]
+            curr = row["State Eq. LP Solved LP"]
         elif i == "State Eq. ILP Time":
-            num_lps = num_lps + row["State Eq. ILP Solved LP"]
+            curr = row["State Eq. ILP Solved LP"]
         elif i == "Ext. Eq. LP Time":
-            num_lps = num_lps + row["Ext. Eq. LP Solved LP"]
+            curr = row["Ext. Eq. LP Solved LP"]
         elif i == "Ext. Eq. ILP Time":
-            num_lps = num_lps + row["Ext. Eq. ILP Solved LP"]
+            curr = row["Ext. Eq. ILP Solved LP"]
 
-        row_num = row_num + 1
+        if not isinstance(curr, str):  # curr is not Timeout
+            num_lps += curr
+
+        row_num += 1
 
     return num_lps
 
 
 def replace_label_by_time(ls):
     for i in range(len(ls)):
-        if ls[i] == "No Heuristic":
+        curr = ls[i].strip()
+        if curr == "No Heuristic":
             ls[i] = "No Heuristic Time"
-        elif ls[i] == "Naive":
+        if curr == "Naive":
             ls[i] = "Naive Time"
-        elif ls[i] == "State Eq. LP":
+        if curr == "State Eq. LP":
             ls[i] = "State Eq. LP Time"
-        elif ls[i] == "State Eq. ILP":
+        if curr == "State Eq. ILP":
             ls[i] = "State Eq. ILP Time"
-        elif ls[i] == "Ext. Eq. LP":
+        if curr == "Ext. Eq. LP":
             ls[i] = "Ext. Eq. LP Time"
-        elif ls[i] == "Ext. Eq. ILP":
+        if curr == "Ext. Eq. ILP":
             ls[i] = "Ext. Eq. ILP Time"
     return ls
 
@@ -150,7 +157,7 @@ def states_one_heuristic(df, visited):
 
     num_states = [[] for i in range(len(heuristics))]
 
-    for ind in df.index:
+    for ind in range(len(df)):
         row = df.iloc[ind, :]
 
         for i in range(len(heuristics)):
@@ -263,9 +270,9 @@ def time_using_model(df, predictions):
 def plot_multiple_bars(optimal, model, ls_heuristics, y_label, plot_title):
     x = ["Optimal", "Random", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
 
-    #y_optimal = [optimal for i in range(len_x)]
+    # y_optimal = [optimal for i in range(len_x)]
 
-    #y_model = [model for i in range(len_x)]
+    # y_model = [model for i in range(len_x)]
     z_others = ls_heuristics
 
     values = []
@@ -279,13 +286,13 @@ def plot_multiple_bars(optimal, model, ls_heuristics, y_label, plot_title):
         values.append(model)
     values = values + ls_heuristics
 
-    #if optimal == 0:
-        #absolute difference
-        #differences_model = [z - optimal for z in y_model]
-        #differences_heuristics = [z - optimal for z in z_others]
-    #else:  # percentage difference
-        #differences_model = [round(z / optimal, 2) for z in y_model]
-        #differences_heuristics = [round(z / optimal, 2) for z in z_others]
+    # if optimal == 0:
+    # absolute difference
+    # differences_model = [z - optimal for z in y_model]
+    # differences_heuristics = [z - optimal for z in z_others]
+    # else:  # percentage difference
+    # differences_model = [round(z / optimal, 2) for z in y_model]
+    # differences_heuristics = [round(z / optimal, 2) for z in z_others]
     len_x = len(x)
     x_axis = np.arange(len_x)
 
@@ -320,10 +327,242 @@ def plot_multiple_bars(optimal, model, ls_heuristics, y_label, plot_title):
     plt.show()
 
 
-if __name__ == "__main__":
+def get_winners_grouped_by_heuristic(df, timeout):
+    min_index = df[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                    "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
 
-    df = pd.read_pickle("results/road_inductive_0_3.pkl")
-    len_df = len(df.index)
+    row_num = 0
+
+    no_heuristic = []
+    naive = []
+    state_lp = []
+    state_ilp = []
+    ext_lp = []
+    ext_ilp = []
+
+    for i in min_index:
+        row = df.iloc[row_num, :]
+        curr = 0
+
+        if i == "No Heuristic Time":
+            no_heuristic.append(row)
+        elif i == "Naive Time":
+            naive.append(row)
+        elif i == "State Eq. LP Time":
+            state_lp.append(row)
+        elif i == "State Eq. ILP Time":
+            state_ilp.append(row)
+        elif i == "Ext. Eq. LP Time":
+            ext_lp.append(row)
+        elif i == "Ext. Eq. ILP Time":
+            ext_ilp.append(row)
+
+        row_num += 1
+
+    return no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp
+
+
+def get_avg_trace_len_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp):
+    groups = [no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp]
+
+    val_ls = []
+
+    for g in groups:
+        val = 0
+        if g:
+            for i in g:
+                val += len(i["Trace"])
+            val = val / len(g)
+
+        val_ls.append(val)
+
+    return val_ls
+
+
+def get_num_transitions_in_model(pn):
+    return len(pn.transitions)
+
+
+# alignment costs?
+# fitness
+# statistics
+# len trace, model
+def get_avg_value_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp, value="fitness"):
+    groups = [no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp]
+
+    val_ls = []
+
+    for g in groups:
+        val = 0
+        if g:
+            heuristic = ""
+            if g == no_heuristic:
+                heuristic = "No Heuristic"
+            elif g == naive:
+                heuristic = "Naive"
+            elif g == state_lp:
+                heuristic = "State Eq. LP"
+            elif g == state_ilp:
+                heuristic = "State Eq. ILP"
+            elif g == ext_lp:
+                heuristic = "Ext Eq. LP"
+            elif g == ext_ilp:
+                heuristic = "Ext Eq. ILP"
+
+            for i in g:
+                val += i[heuristic][value]
+            val = val / len(g)
+        #val = val
+
+        val_ls.append(val)
+
+    return val_ls
+
+
+def heuristics_values(df: pd.DataFrame, v="fitness"):
+    heuristics = ["No Heuristic", "Naive", "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP"]
+    values = []
+    for h in heuristics:
+        value = 0
+
+        for i in range(len(df)):
+            curr = df[h][i]
+            if curr is not None:
+                value += curr[v]
+
+        value /= len(df)
+        values.append(value)
+
+    return values
+
+
+def draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp, apply, use_pn, use_trace):
+    groups = [no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp]
+
+    val_ls = []
+
+    for g in groups:
+        val = []
+        if g:
+            heuristic = ""
+            if g == no_heuristic:
+                heuristic = "No Heuristic"
+            elif g == naive:
+                heuristic = "Naive"
+            elif g == state_lp:
+                heuristic = "State Eq. LP"
+            elif g == state_ilp:
+                heuristic = "State Eq. ILP"
+            elif g == ext_lp:
+                heuristic = "Ext Eq. LP"
+            elif g == ext_ilp:
+                heuristic = "Ext Eq. ILP"
+
+            for i in g:
+                trace = i["Trace"]
+                pn = i["Petri Net"]
+
+                if use_pn and use_trace:
+                    curr = apply(pn, trace)
+                elif use_trace:
+                    curr = apply(trace)
+                elif use_pn:
+                    curr = apply(pn)
+                if isinstance(curr, (list, tuple)):
+                    val.append(curr[0])
+                else:
+                    val.append(curr)
+
+        val_ls.append(np.asarray(val))
+
+    fig = plt.figure(figsize=(10, 7))
+
+    # Creating axes instance
+    #ax = fig.add_axes([0, 0, 1, 1])
+
+    # Creating plot
+    #bp = ax.boxplot(val_ls)
+    plt.boxplot(val_ls)
+    plt.xticks([1, 2, 3, 4, 5, 6], ["No", "Naive", "State LP", "State ILP", "Ext LP", "Ext ILP"])
+
+    # show plot
+    plt.show()
+
+
+def draw_box_plot_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp, value="fitness"):
+    groups = [no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp]
+
+    val_ls = []
+
+    for g in groups:
+        val = []
+        if g:
+            heuristic = ""
+            if g == no_heuristic:
+                heuristic = "No Heuristic"
+            elif g == naive:
+                heuristic = "Naive"
+            elif g == state_lp:
+                heuristic = "State Eq. LP"
+            elif g == state_ilp:
+                heuristic = "State Eq. ILP"
+            elif g == ext_lp:
+                heuristic = "Ext Eq. LP"
+            elif g == ext_ilp:
+                heuristic = "Ext Eq. ILP"
+
+            for i in g:
+                val.append(i[heuristic][value])
+
+        val_ls.append(np.asarray(val))
+
+    fig = plt.figure(figsize=(10, 7))
+
+    # Creating axes instance
+    #ax = fig.add_axes([0, 0, 1, 1])
+
+    # Creating plot
+    #bp = ax.boxplot(val_ls)
+    plt.boxplot(val_ls)
+    plt.xticks([1, 2, 3, 4, 5, 6], ["No", "Naive", "State LP", "State ILP", "Ext LP", "Ext ILP"])
+
+    # show plot
+    plt.show()
+
+
+def draw_box_plot_all(df, v="fitness"):
+    heuristics = ["No Heuristic", "Naive", "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP"]
+    values = []
+    for h in heuristics:
+        value = []
+
+        for i in range(len(df)):
+            curr = df[h][i]
+            if curr is not None:
+                value.append(curr[v])
+
+        values.append(np.asarray(value))
+
+    fig = plt.figure(figsize=(10, 7))
+
+    # Creating axes instance
+    #ax = fig.add_axes([0, 0, 1, 1])
+
+    # Creating plot
+    #bp = ax.boxplot(values)
+    plt.boxplot(values)
+    plt.xticks([1, 2, 3, 4, 5, 6], ["No", "Naive", "State LP", "State ILP", "Ext LP", "Ext ILP"])
+    # show plot
+    plt.show()
+
+
+
+if __name__ == "__main__":
+    #df = pd.read_pickle("results/sepsis_filtered_inductive_0_3.pkl")
+    #df = pd.read_pickle("results/road_inductive_02_updated.pkl")
+    df = pd.read_pickle("results/road_filtered_inductive_0_3.pkl")
+    #df = pd.read_pickle("results/road_heuristic_3.pkl")
+    len_df = len(df)
     timeout = 180
 
     optimal_time = time_with_optimal_heuristics(df)
@@ -346,7 +585,7 @@ if __name__ == "__main__":
                   "Ext. Eq. ILP Time"]
 
     for h in heuristics:
-        num_timeouts = len(df[df[h].ge(timeout)].index)
+        num_timeouts = len(df[df[h].ge(timeout)])
         timeouts_heuristics.append(num_timeouts)
 
     # states
@@ -436,3 +675,22 @@ if __name__ == "__main__":
                        "Number of visited states", "Visited States")
     plot_multiple_bars(optimal_queued_states, random_queued_states, queued_states_heuristic, "Number of queued states",
                        "Queued States")
+
+    no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp = get_winners_grouped_by_heuristic(df, 180)
+    print("Avg fitness winners ", get_avg_value_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
+                                                        value="fitness"))
+    print("Avg costs winners ", get_avg_value_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp, value="cost"))
+    print(heuristics_values(df))
+    print(heuristics_values(df, "cost"))
+    print("Avg trace length winners ", get_avg_trace_len_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp))
+    draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
+                                features.parallelism_model_multiplied, use_pn=True, use_trace=False)
+    draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
+                                features.choice, use_pn=True, use_trace=False)
+    draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
+                                features.len_trace, use_pn=False, use_trace=True)
+    #draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
+     #                           features.parallelism_model_multiplied, use_pn=True, use_trace=False)
+    # boxplots fitness
+    draw_box_plot_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp)
+    draw_box_plot_all(df)
