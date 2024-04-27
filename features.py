@@ -4,14 +4,6 @@ import numpy as np
 
 from statistics import mean
 
-df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_broken.csv', sep=';'),
-                                     case_id='case:concept:name', activity_key='concept:name',
-                                     timestamp_key='time:timestamp')
-pn, im, fm = pm4py.discover_petri_net_inductive(df_problems)
-
-trace = ['examine thoroughly', 'check ticket', 'examine thoroughly', 'decide', 'reject request']
-
-
 def count_places(net):
     places = net.places
     return len(places)
@@ -78,13 +70,17 @@ def degree_ratio(pn, use_place=True, direction="in"):
 
 def choice(pn):
     sum_degree = 0
+    mult_degree = 1
 
     for p in pn.places:
         len_arcs = len(p.out_arcs)
-        sum_degree = sum_degree + len_arcs
+
+        if len_arcs > 0:
+            sum_degree = sum_degree + len_arcs
+            mult_degree = mult_degree * len_arcs
 
     ratio = sum_degree / len(pn.places)
-    return sum_degree, ratio
+    return sum_degree, ratio, mult_degree, mult_degree/len(pn.places)
 
 
 def parallelism(pn):
@@ -100,6 +96,25 @@ def parallelism(pn):
     return sum_degree, ratio
 
 
+def parallelism_model_multiplied(pn):
+    mult_degree = 1
+
+    transitions = pn.transitions
+
+    for t in transitions:
+        len_arcs = len(t.out_arcs)
+        if len_arcs > 0:
+            mult_degree *= len_arcs
+
+    ratio = mult_degree / len(transitions)
+
+    return mult_degree, ratio
+
+
+def len_trace(trace):
+    return len(trace)
+
+
 def trace_ratio(pn, trace):
     #t = [x['concept:name'] for x in trace]
     t = trace
@@ -108,7 +123,7 @@ def trace_ratio(pn, trace):
     num_transitions = len(pn.transitions)
     num_places = len(pn.transitions)
 
-    return len_trace, len_trace / num_transitions, len_trace / num_places
+    return len_trace, len_trace / num_transitions, len_trace / num_places, num_transitions/len_trace, num_places/len_trace
 
 
 def countX(lst, x):
@@ -147,7 +162,7 @@ def model_duplicates(pn):
     num_duplicates = len(result)
 
     if len(labels) == 0:
-        ratio  = 0
+        ratio = 0
     else:
         ratio = num_duplicates / len(labels)
 
@@ -247,20 +262,34 @@ def matching_labels(pn, trace):
         ratio = match_count_model/len(labels_model)
     return match_count_trace, match_count_trace / len(t), match_count_model, ratio
 
+def token_based_reaply(trace, pn, im, fm):
+    pm4py.conformance_diagnostics_token_based_replay()
 
 
-print(degree(pn))
-print(degree(pn, direction="out"))
-print(degree(pn, False))
-print(degree(pn, False, "out"))
+if __name__ == "__main__":
+    #df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_broken.csv', sep=';'),
+     #                                    case_id='case:concept:name', activity_key='concept:name',
+      #                                   timestamp_key='time:timestamp')
+    #pn, im, fm = pm4py.discover_petri_net_inductive(df_problems)
+    road = pm4py.read_xes("pm4py/data/Road_Traffic_Fine_Management_Process.xes")
+    pn, im, fm = pm4py.discover_petri_net_inductive(road, noise_threshold=0)
 
-print(degree_ratio(pn))
-print(choice(pn))
-print(parallelism(pn))
-print(trace_ratio(pn, trace))
-print(model_silent_transitions(pn))
-print(model_duplicates(pn))
-print(transitions_no_in_arc(pn))
-print(trace_loop(trace))
-print(matching_loop(pn, trace))
-print(matching_labels(pn, trace))
+    trace = ['examine thoroughly', 'check ticket', 'examine thoroughly', 'decide', 'reject request']
+
+    print(degree(pn))
+    print(degree(pn, direction="out"))
+    print(degree(pn, False))
+    print(degree(pn, False, "out"))
+
+    print(degree_ratio(pn))
+    print(choice(pn))
+    print(parallelism(pn))
+    print(trace_ratio(pn, trace))
+    print(model_silent_transitions(pn))
+    print(model_duplicates(pn))
+    print(transitions_no_in_arc(pn))
+    print(trace_loop(trace))
+    print(matching_loop(pn, trace))
+    print(matching_labels(pn, trace))
+    print(parallelism_model_multiplied(pn))
+    print(choice(pn))
