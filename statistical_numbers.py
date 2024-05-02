@@ -306,12 +306,12 @@ def plot_multiple_bars(optimal, model, ls_heuristics, y_label, plot_title):
     # plt.bar(br2, y_model, bar_width, label="model")
     # plt.bar(br3, z_others, bar_width, label="other heuristics")
 
-    plt.axhline(y=optimal, color="green", linestyle="dashed", label="Optimal")
+    plt.axhline(optimal, color="green", linestyle="dashed", label="Optimal")
     if isinstance(model, list):
-        plt.axhline(y=model[0], color="r", linestyle="dashed", label="Random")
-        plt.axhline(y=model[1], color="b", linestyle="dashed", label="ML")
+        plt.axhline(model[0], color="r", linestyle="dashed", label="Random")
+        plt.axhline(model[1], color="b", linestyle="dashed", label="ML")
     else:
-        plt.axhline(y=model, color="r", linestyle="dashed", label="Random")
+        plt.axhline(model, color="r", linestyle="dashed", label="Random")
 
     for i in range(len_x):
         plt.text(i, values[i] + 0.05, round(values[i], 3), ha="center")
@@ -321,6 +321,71 @@ def plot_multiple_bars(optimal, model, ls_heuristics, y_label, plot_title):
     plt.xticks([r for r in range(len_x)], x)
     plt.xlabel("Comparison of optimal heuristics and only using one heuristic")
     plt.ylabel(y_label)
+    plt.title(plot_title)
+    plt.legend()
+    plt.savefig("visualization/" + plot_title + ".png")
+    plt.show()
+
+
+def plot_multiple_bars_h(optimal, model, ls_heuristics, y_label, plot_title):
+    x = ["Optimal", "Random", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+    y = ["Ext. ILP", "Ext. LP", "State ILP", "State LP", "Naive", "Dijkstra", "Random", "Optimal"]
+
+    # y_optimal = [optimal for i in range(len_x)]
+
+    # y_model = [model for i in range(len_x)]
+    z_others = ls_heuristics
+
+    values = []
+    values.append(optimal)
+
+    #values_y = []
+    #values_y = values_y + ls_heuristics.reverse()
+
+    if isinstance(model, list):
+        for i in model:
+            values.append(i)
+            #values_y.append(len(model)-i)
+        x = ["Optimal", "Random", "Model", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+        y = ["Ext. ILP", "Ext. LP", "State ILP", "State LP", "Naive", "Dijkstra", "Model", "Random", "Optimal"]
+
+    else:
+        values.append(model)
+
+    values = values + ls_heuristics
+    values.reverse()
+    # if optimal == 0:
+    # absolute difference
+    # differences_model = [z - optimal for z in y_model]
+    # differences_heuristics = [z - optimal for z in z_others]
+    # else:  # percentage difference
+    # differences_model = [round(z / optimal, 2) for z in y_model]
+    # differences_heuristics = [round(z / optimal, 2) for z in z_others]
+    len_x = len(x)
+    x_axis = np.arange(len_x)
+
+    bar_width = 0.25
+
+    br1 = x_axis
+
+    plt.barh(br1, values, bar_width)
+
+    plt.axvline(optimal, color="green", linestyle="dashed", label="Optimal")
+    if isinstance(model, list):
+        plt.axvline(model[0], color="r", linestyle="dashed", label="Random")
+        plt.axvline(model[1], color="b", linestyle="dashed", label="ML")
+    else:
+        plt.axvline(model, color="r", linestyle="dashed", label="Random")
+
+    #for i in range(len_x):
+     #   plt.text(values[i] + 0.25, i, round(values[i], 3), ha="center")
+
+    #plt.style.use('fivethirtyeight')
+
+    plt.xscale("log")
+    plt.yticks([r for r in range(len_x)], y)
+    plt.xlabel(y_label)
+    plt.ylabel("Comparison of optimal heuristics and only using one heuristic")
     plt.title(plot_title)
     plt.legend()
     plt.savefig("visualization/" + plot_title + ".png")
@@ -412,7 +477,7 @@ def get_avg_value_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_
             for i in g:
                 val += i[heuristic][value]
             val = val / len(g)
-        #val = val
+        # val = val
 
         val_ls.append(val)
 
@@ -478,10 +543,10 @@ def draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp
     fig = plt.figure(figsize=(10, 7))
 
     # Creating axes instance
-    #ax = fig.add_axes([0, 0, 1, 1])
+    # ax = fig.add_axes([0, 0, 1, 1])
 
     # Creating plot
-    #bp = ax.boxplot(val_ls)
+    # bp = ax.boxplot(val_ls)
     plt.boxplot(val_ls)
     plt.xticks([1, 2, 3, 4, 5, 6], ["No", "Naive", "State LP", "State ILP", "Ext LP", "Ext ILP"])
 
@@ -519,10 +584,10 @@ def draw_box_plot_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_
     fig = plt.figure(figsize=(10, 7))
 
     # Creating axes instance
-    #ax = fig.add_axes([0, 0, 1, 1])
+    # ax = fig.add_axes([0, 0, 1, 1])
 
     # Creating plot
-    #bp = ax.boxplot(val_ls)
+    # bp = ax.boxplot(val_ls)
     plt.boxplot(val_ls)
     plt.xticks([1, 2, 3, 4, 5, 6], ["No", "Naive", "State LP", "State ILP", "Ext LP", "Ext ILP"])
 
@@ -546,22 +611,30 @@ def draw_box_plot_all(df, v="fitness"):
     fig = plt.figure(figsize=(10, 7))
 
     # Creating axes instance
-    #ax = fig.add_axes([0, 0, 1, 1])
+    # ax = fig.add_axes([0, 0, 1, 1])
 
     # Creating plot
-    #bp = ax.boxplot(values)
+    # bp = ax.boxplot(values)
     plt.boxplot(values)
     plt.xticks([1, 2, 3, 4, 5, 6], ["No", "Naive", "State LP", "State ILP", "Ext LP", "Ext ILP"])
     # show plot
     plt.show()
 
 
-
 if __name__ == "__main__":
-    #df = pd.read_pickle("results/sepsis_filtered_inductive_0_3.pkl")
-    #df = pd.read_pickle("results/road_inductive_02_updated.pkl")
-    df = pd.read_pickle("results/road_filtered_inductive_0_3.pkl")
-    #df = pd.read_pickle("results/road_heuristic_3.pkl")
+    # df = pd.read_pickle("results/sepsis_filtered_inductive_0_3.pkl")
+    # df = pd.read_pickle("results/road_inductive_02_updated.pkl")
+    # df = pd.read_pickle("results/road_filtered_inductive_0_3.pkl")
+    # df = pd.read_pickle("results/road_heuristic_3.pkl")
+
+    df = pd.read_pickle("results/sepsis_alpha_0.2_3.pkl")
+    # df = pd.read_pickle("results/sepsis_inductive_0_3.pkl")
+    # df = pd.read_pickle("results/sepsis_filtered_inductive_0_3.pkl") Fehler?
+
+    # df = pd.read_pickle("results/prepaid_inductive_0_3.pkl")
+    # df = pd.read_pickle("results/prepaid2024-03-08 00:24:01.pkl")
+    # df = pd.read_pickle("results/prepaid_filtered_inductive_0_3.pkl")
+
     len_df = len(df)
     timeout = 180
 
@@ -667,30 +740,35 @@ if __name__ == "__main__":
 
     print("Random guessing: ", random_time)
 
+    plot_multiple_bars_h(optimal_time, random_time, times_one_heuristic, "Time in seconds", "Computation times")
+    plot_multiple_bars_h(optimal_queued_states, random_queued_states, queued_states_heuristic,
+                         "Number of queued states",
+                         "Queued States")
     plot_multiple_bars(optimal_time, random_time, times_one_heuristic, "Time in seconds", "Computation times")
     plot_multiple_bars(optimal_timeouts, random_timeouts, timeouts_heuristics, "Number of timeouts",
                        plot_title="Timeouts")
     plot_multiple_bars(optimal_lps, random_lps, lps_one_heuristic, "Number of solved lps", "Solved LPs")
     plot_multiple_bars(optimal_visited_states, random_visited_states, visited_states_heuristic,
                        "Number of visited states", "Visited States")
-    plot_multiple_bars(optimal_queued_states, random_queued_states, queued_states_heuristic, "Number of queued states",
-                       "Queued States")
+
 
     no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp = get_winners_grouped_by_heuristic(df, 180)
     print("Avg fitness winners ", get_avg_value_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
                                                         value="fitness"))
-    print("Avg costs winners ", get_avg_value_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp, value="cost"))
+    print("Avg costs winners ",
+          get_avg_value_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp, value="cost"))
     print(heuristics_values(df))
     print(heuristics_values(df, "cost"))
-    print("Avg trace length winners ", get_avg_trace_len_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp))
+    print("Avg trace length winners ",
+          get_avg_trace_len_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp))
     draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
                                 features.parallelism_model_multiplied, use_pn=True, use_trace=False)
     draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
                                 features.choice, use_pn=True, use_trace=False)
     draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
                                 features.len_trace, use_pn=False, use_trace=True)
-    #draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
-     #                           features.parallelism_model_multiplied, use_pn=True, use_trace=False)
+    # draw_box_plot_winners_apply(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
+    #                           features.parallelism_model_multiplied, use_pn=True, use_trace=False)
     # boxplots fitness
     draw_box_plot_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp)
     draw_box_plot_all(df)
