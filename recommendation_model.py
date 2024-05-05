@@ -5,6 +5,7 @@ import random
 import math
 import matplotlib.pyplot as plt
 from pm4py.algo.evaluation.simplicity import algorithm as simplicity_evaluator
+import seaborn as sns
 
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn import metrics
@@ -48,6 +49,8 @@ def get_merged_data():
     sepsis_alpha = pd.read_pickle("results/sepsis_alpha_0.2_3.pkl")
     sepsis_inductive_02 = pd.read_pickle("results/sepsis_inductive_02_updated.pkl")
     sepsis_filtered = pd.read_pickle("results/sepsis_filtered_inductive_0_3.pkl")
+    sepsis_max_cov = pd.read_pickle("results/sepsis_max_cov_filtered_inductive_0_3.pkl")
+
 
     italian_alpha = pd.read_pickle("results/italian_alpha_0.2_3.pkl")
 
@@ -78,6 +81,7 @@ def get_merged_data():
     international_inductive_0 = pd.read_pickle("results/international_declaration_inductive_0_3.pkl")
     international_inductive_02 = pd.read_pickle("results/international_declaration_inductive_curr.pkl")
     international_filtered = pd.read_pickle("results/international_declaration_filtered_inductive_0_3.pkl")
+    international_max_cov = pd.read_pickle("results/international_declaration_max_cov_filtered_inductive_0_3.pkl")
 
     permit_inductive_0 = pd.read_pickle("results/permit_inductive_0_curr.pkl")
     permit_inductive_02 = pd.read_pickle("permit_inductive_0.2_curr.pkl")
@@ -92,6 +96,7 @@ def get_merged_data():
     data = data._append(sepsis_alpha)
     data = data._append(sepsis_inductive_02)
     data = data._append(sepsis_filtered)
+    data = data._append(sepsis_max_cov)
 
     data = data._append(italian_alpha)
 
@@ -119,6 +124,7 @@ def get_merged_data():
     data = data._append(international_inductive_0)
     data = data._append(international_inductive_02)
     data = data._append(international_filtered)
+    data = data._append(international_max_cov)
 
     data = data._append(permit_inductive_0)
     data = data._append(permit_inductive_02)
@@ -146,7 +152,6 @@ def create_features(trace, pn):
     curr_features.append(transitions_trace_ratio)
     curr_features.append(places_trace_ratio)
 
-    """
     trace_loop, trace_loop_ratio, max_reps, max_reps_ratio, mean_reps, mean_reps_ratio, sum_reps, sum_reps_ratio = features.trace_loop(
         trace)
     curr_features.append(trace_loop)
@@ -161,7 +166,6 @@ def create_features(trace, pn):
     model_duplicates, model_duplicates_ratio = features.model_duplicates(pn)
     curr_features.append(model_duplicates)
     curr_features.append(model_duplicates_ratio)
-    """
 
     trans_no_in_arc, trans_no_in_arc_ratio = features.transitions_no_in_arc(pn)
     curr_features.append(trans_no_in_arc)
@@ -186,6 +190,9 @@ def create_features(trace, pn):
     curr_features.append(choice_mult_ratio)
 
     curr_features.append(simplicity_evaluator.apply(pn))
+
+    free_choice = features.free_choice(pn)
+    curr_features.append(free_choice)
 
     return curr_features
 
@@ -275,16 +282,16 @@ def get_features_data(data):
     columns = ["Matching Labels Trace", "Matching Trace Ratio", "Matching Labels Models",
                "Matching Model Ratio", "Trace Length", "Trace Trans Ratio",
                "Trace Place Ratio", "Trans Trace Ratio", "Place Trace Ratio",
-               #"Trace Loop", "Trace Loop Ratio", "Trace Loop Max",
-               #"Trace Loop Max Ratio", "Trace Loop Mean", "Trace Loop Mean Ratio",
-               #"Trace Loop Sum", "Trace Loop Sum Ratio", "Model Duplicates",
-               #"Model Duplicates Ratio",
+               "Trace Loop", "Trace Loop Ratio", "Trace Loop Max",
+               "Trace Loop Max Ratio", "Trace Loop Mean", "Trace Loop Mean Ratio",
+               "Trace Loop Sum", "Trace Loop Sum Ratio", "Model Duplicates",
+               "Model Duplicates Ratio",
                "Trans No In-arc", "Trans No In-arc ratio",
                "Silent Transitions", "Silent Transitions ratio",
                "Parallelism Sum",
                "Parallelism Sum Ratio", "Parallelism Mult", "Parallelism Mult Ratio",
                "Choice Sum", "Choice Sum Ratio", "Choice Mult", "Choice Mult Ratio",
-               "Simplicity"]
+               "Simplicity", "Free-Choice"]
 
     features_df = pd.DataFrame(feature, columns=columns, dtype=float)
 
@@ -402,6 +409,23 @@ dtree = DecisionTreeClassifier().fit(X_train_features, y_train)
 y_pred_tree = dtree.predict(X_test_features)
 print("Decision Tree: Number of mislabeled points out of a total %d points : %d" % (
     X_test.shape[0], (y_test != y_pred_tree).sum()))
+tree_labels = dtree.classes_
+
+score_tree = metrics.accuracy_score(y_test, y_pred_tree)
+print("Tree accuracy when no difference between LP and ILP:   %0.3f" % score_tree)
+
+#proba_tree = dtree.predict_proba(X_test_features)
+
+cm = metrics.confusion_matrix(y_test, y_pred_tree, labels=tree_labels)
+
+df_cm = pd.DataFrame(cm, columns=tree_labels, index=tree_labels)
+df_cm.index.name = 'Actual'
+df_cm.columns.name = 'Predicted'
+plt.figure(figsize = (10,7))
+sns.set(font_scale=1.4)#for label size
+sns.heatmap(df_cm, cmap="Blues", annot=True,annot_kws={"size": 16},fmt='g')
+plt.title("Confusions Matrix of Decision Tree")
+plt.show()
 
 # NN
 
@@ -423,6 +447,8 @@ y_pred_mlp = mlp.predict(X_test_features)
 end_predict_mlp = time.time()
 time_predict_mlp = end_predict_mlp - start_predict_mlp
 
+proba_mlp = mlp.predict_log_proba(X_test_features)
+
 print("MLP: Number of mislabeled points out of a total %d points : %d" % (
     X_test.shape[0], (y_test != y_pred_mlp).sum()))
 
@@ -434,9 +460,19 @@ mlp_labels = mlp.classes_
 class_report = metrics.classification_report(y_test, y_pred_mlp, target_names=mlp_labels)
 
 cm = metrics.confusion_matrix(y_test, y_pred_mlp, labels=mlp_labels)
-disp = metrics.ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=mlp_labels)
-disp.plot()
+
+df_cm = pd.DataFrame(cm, columns=mlp_labels, index = mlp_labels)
+df_cm.index.name = 'Actual'
+df_cm.columns.name = 'Predicted'
+plt.figure(figsize = (10,7))
+sns.set(font_scale=1.4)#for label size
+sns.heatmap(df_cm, cmap="Blues", annot=True,annot_kws={"size": 16},fmt='g')
+plt.title("Confusions Matrix of Neural Network")
+#sns.heatmap(cm, annot=mlp_labels, cmap='Blues')
 plt.show()
+#disp = metrics.ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=mlp_labels)
+#disp.plot()
+#plt.show()
 
 # Ensembles
 
@@ -523,8 +559,14 @@ random_lps = statistical_numbers.lps_optimal_heuristics(X_test, random_idx)
 random_visited_states = statistical_numbers.states_optimal_heuristics(X_test, True, random_idx)
 random_queued_states = statistical_numbers.states_optimal_heuristics(X_test, False, random_idx)
 
-statistical_numbers.plot_multiple_bars(optimal_time, [random_time, time_model], time_heuristics,
+plt.rcParams.update(plt.rcParamsDefault)
+"""
+statistical_numbers.plot_multiple_bars_h(optimal_time, [random_time, time_model], time_heuristics,
                                        "Time in seconds", "Computation Time MLP Model")
+statistical_numbers.plot_multiple_bars_h(optimal_queued_states, [random_queued_states, model_queued_states],
+                                       queued_states_heuristic, "Number of queued states",
+                                       "Queued States")
+
 statistical_numbers.plot_multiple_bars(optimal_time, [random_time, time_relaxed_model], time_heuristics,
                                        "Time in seconds", "Computation Time Relaxed Model")
 
@@ -535,6 +577,5 @@ statistical_numbers.plot_multiple_bars(optimal_lps, [random_lps, model_lps], lps
 statistical_numbers.plot_multiple_bars(optimal_visited_states, [random_visited_states, model_visited_states],
                                        visited_states_heuristic,
                                        "Number of visited states", "Visited States")
-statistical_numbers.plot_multiple_bars(optimal_queued_states, [random_queued_states, model_queued_states],
-                                       queued_states_heuristic, "Number of queued states",
-                                       "Queued States")
+"""
+

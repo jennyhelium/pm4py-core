@@ -1,8 +1,30 @@
 import pm4py
 import pandas as pd
 import numpy as np
+from pm4py.objects.petri_net.utils import check_soundness
 
 from statistics import mean
+
+
+def free_choice(net):
+    for p in net.places:
+        # check if outgoing arc only arc from that place
+        if len(p.out_arcs) <= 1:
+            continue
+        else:  # check if outgoing arc is only arc to that transition
+            for arc in p.out_arcs:
+                curr_target = arc.target.name
+
+                pre_set = []
+                for t in net.arcs:  # set of arcs
+                    if t.target.name != curr_target:
+                        continue
+                    else:
+                        pre_set.append(t.source)
+                if len(pre_set) > 1:
+                    return 0
+    return 1
+
 
 def count_places(net):
     places = net.places
@@ -80,7 +102,7 @@ def choice(pn):
             mult_degree = mult_degree * len_arcs
 
     ratio = sum_degree / len(pn.places)
-    return sum_degree, ratio, mult_degree, mult_degree/len(pn.places)
+    return sum_degree, ratio, mult_degree, mult_degree / len(pn.places)
 
 
 def parallelism(pn):
@@ -116,14 +138,14 @@ def len_trace(trace):
 
 
 def trace_ratio(pn, trace):
-    #t = [x['concept:name'] for x in trace]
+    # t = [x['concept:name'] for x in trace]
     t = trace
     len_trace = len(t)
 
     num_transitions = len(pn.transitions)
     num_places = len(pn.transitions)
 
-    return len_trace, len_trace / num_transitions, len_trace / num_places, num_transitions/len_trace, num_places/len_trace
+    return len_trace, len_trace / num_transitions, len_trace / num_places, num_transitions / len_trace, num_places / len_trace
 
 
 def countX(lst, x):
@@ -156,7 +178,7 @@ def model_duplicates(pn):
             counts.append(count_t)
             visited.append(t)
 
-    #result = filter(lambda x: x > 1, counts)
+    # result = filter(lambda x: x > 1, counts)
     result = [x for x in counts if x > 1]
 
     num_duplicates = len(result)
@@ -170,7 +192,7 @@ def model_duplicates(pn):
 
 
 def trace_loop(trace):
-    #t = [x['concept:name'] for x in trace]
+    # t = [x['concept:name'] for x in trace]
     t = trace
 
     visited = []
@@ -182,7 +204,7 @@ def trace_loop(trace):
             counts.append(count_i)
             visited.append(i)
 
-    #result = filter(lambda x: x > 1, counts)
+    # result = filter(lambda x: x > 1, counts)
     result = [x for x in counts if x > 1]
 
     num_repetitions = len(result)
@@ -237,7 +259,7 @@ def matching_loop(pn, trace):
 
 
 def matching_labels(pn, trace):
-    #t = [x['concept:name'] for x in trace]
+    # t = [x['concept:name'] for x in trace]
     t = trace
 
     transitions = pn.transitions
@@ -259,23 +281,28 @@ def matching_labels(pn, trace):
     if len(labels_model) == 0:
         ratio = 0
     else:
-        ratio = match_count_model/len(labels_model)
+        ratio = match_count_model / len(labels_model)
     return match_count_trace, match_count_trace / len(t), match_count_model, ratio
+
 
 def token_based_reaply(trace, pn, im, fm):
     pm4py.conformance_diagnostics_token_based_replay()
 
 
 if __name__ == "__main__":
-    #df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_broken.csv', sep=';'),
-     #                                    case_id='case:concept:name', activity_key='concept:name',
-      #                                   timestamp_key='time:timestamp')
-    #pn, im, fm = pm4py.discover_petri_net_inductive(df_problems)
-    road = pm4py.read_xes("pm4py/data/Road_Traffic_Fine_Management_Process.xes")
-    pn, im, fm = pm4py.discover_petri_net_inductive(road, noise_threshold=0)
+    df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_broken.csv', sep=';'),
+                                        case_id='case:concept:name', activity_key='concept:name',
+                                       timestamp_key='time:timestamp')
+    pn, im, fm = pm4py.discover_petri_net_alpha(df_problems)
+    #road = pm4py.read_xes("pm4py/data/Road_Traffic_Fine_Management_Process.xes")
+    #pn, im, fm = pm4py.discover_petri_net_inductive(road, noise_threshold=0)
+
+    pm4py.view_petri_net(pn, im, fm)
+    print(free_choice(pn))
+
 
     trace = ['examine thoroughly', 'check ticket', 'examine thoroughly', 'decide', 'reject request']
-
+"""
     print(degree(pn))
     print(degree(pn, direction="out"))
     print(degree(pn, False))
@@ -293,3 +320,5 @@ if __name__ == "__main__":
     print(matching_labels(pn, trace))
     print(parallelism_model_multiplied(pn))
     print(choice(pn))
+"""
+
