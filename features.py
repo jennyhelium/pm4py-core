@@ -1,9 +1,73 @@
 import pm4py
 import pandas as pd
 import numpy as np
+from copy import copy
+import random
 from pm4py.objects.petri_net.utils import check_soundness
+from pm4py.objects import petri_net
+
 
 from statistics import mean
+
+
+def random_playout(net, initial_marking, final_marking, no_traces, max_trace_length, semantics=petri_net.semantics.ClassicSemantics()):
+
+    visited = 0
+    queued = 0
+    traversed = 0
+    deadlock = 0
+    boundedness = 0
+
+    all_visited_elements = []
+
+    i = 0
+    while True:
+        if len(all_visited_elements) >= no_traces:
+            break
+
+        if i >= no_traces:
+            if len(all_visited_elements) == 0:
+                break
+
+        visited_elements = []  # marking and transitions
+        visible_transitions_visited = []
+
+        marking = copy(initial_marking)
+        while len(visible_transitions_visited) < max_trace_length:
+            visited += 1
+            visited_elements.append(marking)
+
+            if not semantics.enabled_transitions(net, marking):  # deadlock
+                deadlock += 1
+                break
+
+            all_enabled_trans = semantics.enabled_transitions(net, marking)
+
+            if final_marking is not None and (final_marking == marking):  # final marking reached
+                trans = random.choice(list(all_enabled_trans.union({None})))  # pick random enabled transition
+            else:
+                trans = random.choice(list(all_enabled_trans))
+
+            if trans is None:
+                break
+
+            #traversed += 1
+            visited_elements.append(trans)
+
+            if trans.label is not None:
+                visible_transitions_visited.append(trans)
+
+            marking = semantics.execute(trans, net, marking)
+            # check for boundedness
+            most_common_place_count = marking.most_common(1)[0][-1]
+            if most_common_place_count > boundedness:
+                boundedness = most_common_place_count
+
+        all_visited_elements.append(tuple(visited_elements))
+
+        i += 1
+
+    return all_visited_elements, visited, deadlock, boundedness
 
 
 def free_choice(net):
@@ -293,13 +357,17 @@ if __name__ == "__main__":
     df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_broken.csv', sep=';'),
                                         case_id='case:concept:name', activity_key='concept:name',
                                        timestamp_key='time:timestamp')
-    pn, im, fm = pm4py.discover_petri_net_alpha(df_problems)
+    pn, im, fm = pm4py.discover_petri_net_inductive(df_problems, noise_threshold=0)
     #road = pm4py.read_xes("pm4py/data/Road_Traffic_Fine_Management_Process.xes")
     #pn, im, fm = pm4py.discover_petri_net_inductive(road, noise_threshold=0)
 
     pm4py.view_petri_net(pn, im, fm)
-    print(free_choice(pn))
-
+    #print(free_choice(pn))
+    visited_elements, visited, deadlock, bound = random_playout(pn, im, fm, 5, 50)
+    print(visited_elements)
+    print(visited)
+    print(deadlock)
+    print(bound)
 
     trace = ['examine thoroughly', 'check ticket', 'examine thoroughly', 'decide', 'reject request']
 """

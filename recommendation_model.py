@@ -135,7 +135,7 @@ def get_merged_data():
     return data
 
 
-def create_features(trace, pn):
+def create_features(trace, pn, im, fm):
     curr_features = []
 
     matches_traces, matches_traces_ratio, matches_models, matches_models_ratio = features.matching_labels(pn, trace)
@@ -193,6 +193,11 @@ def create_features(trace, pn):
 
     free_choice = features.free_choice(pn)
     curr_features.append(free_choice)
+
+    _, visited, deadlock, boundedness = features.random_playout(pn, im, fm, 10, 50)
+    curr_features.append(visited)
+    curr_features.append(deadlock)
+    curr_features.append(boundedness)
 
     return curr_features
 
@@ -266,7 +271,7 @@ def get_features_data(data):
         im = row["Initial Marking"]
         fm = row["Final Marking"]
 
-        row_features = create_features(trace, pn)
+        row_features = create_features(trace, pn, im, fm)
 
         len_features = len(row_features)
 
@@ -291,7 +296,7 @@ def get_features_data(data):
                "Parallelism Sum",
                "Parallelism Sum Ratio", "Parallelism Mult", "Parallelism Mult Ratio",
                "Choice Sum", "Choice Sum Ratio", "Choice Mult", "Choice Mult Ratio",
-               "Simplicity", "Free-Choice"]
+               "Simplicity", "Free-Choice", "Visited States", "Deadlocks", "Boundedness"]
 
     features_df = pd.DataFrame(feature, columns=columns, dtype=float)
 
