@@ -41,6 +41,13 @@ def random_playout(net, initial_marking, final_marking, no_traces, max_trace_len
                 deadlock += 1
                 break
 
+            if marking is not None:
+                # check for boundedness
+                if marking:
+                    max_value = max(marking.values())
+                    if max_value > boundedness:
+                        boundedness = max_value
+
             all_enabled_trans = semantics.enabled_transitions(net, marking)
 
             if final_marking is not None and (final_marking == marking):  # final marking reached
@@ -58,10 +65,7 @@ def random_playout(net, initial_marking, final_marking, no_traces, max_trace_len
                 visible_transitions_visited.append(trans)
 
             marking = semantics.execute(trans, net, marking)
-            # check for boundedness
-            most_common_place_count = marking.most_common(1)[0][-1]
-            if most_common_place_count > boundedness:
-                boundedness = most_common_place_count
+
 
         all_visited_elements.append(tuple(visited_elements))
 
