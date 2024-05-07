@@ -138,6 +138,8 @@ def get_merged_data():
 def create_features(trace, pn, im, fm):
     curr_features = []
 
+    #_, visited, deadlock, boundedness = features.random_playout(pn, im, fm, 10, 50)
+
     matches_traces, matches_traces_ratio, matches_models, matches_models_ratio = features.matching_labels(pn, trace)
     curr_features.append(matches_traces)
     curr_features.append(matches_traces_ratio)
@@ -194,10 +196,10 @@ def create_features(trace, pn, im, fm):
     free_choice = features.free_choice(pn)
     curr_features.append(free_choice)
 
-    _, visited, deadlock, boundedness = features.random_playout(pn, im, fm, 10, 50)
-    curr_features.append(visited)
-    curr_features.append(deadlock)
-    curr_features.append(boundedness)
+
+    #curr_features.append(visited)
+    #curr_features.append(deadlock)
+    #curr_features.append(boundedness)
 
     return curr_features
 
@@ -257,6 +259,64 @@ def label_data(data):
     return encode_times_drop_timeout.reset_index(drop=True)
 
 
+def rank_heuristics(data):
+    encode_ranks = data.copy()
+
+
+    no_rank = []
+    naive_rank = []
+    state_lp_rank = []
+    state_ilp_rank = []
+    ext_lp_rank = []
+    ext_ilp_rank = []
+
+    for i in encode_ranks.index:
+        row = data.iloc[i, :]
+
+        times = []
+        no_time = row["No Heuristic Time"]
+        naive_time = row["Naive Time"]
+        state_lp_time = row["State Eq. LP Time"]
+        state_ilp_time = row["State Eq. ILP Time"]
+        ext_lp_time = row["Ext. Eq. LP Time"]
+        ext_ilp_time = row["Ext. Eq. ILP Time"]
+
+        times.append(-no_time)
+        times.append(-naive_time)
+        times.append(-state_lp_time)
+        times.append(-state_ilp_time)
+        times.append(-ext_lp_time)
+        times.append(-ext_ilp_time)
+
+        heuristics = ["No Heuristic", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+
+        times_dict = {"No Heuristic": no_time, "Naive": naive_time, "State LP": state_lp_time,
+                      "State ILP": state_ilp_time, "Ext. LP": ext_lp_time, "Ext. ILP": ext_ilp_time}
+
+        sorted_keys = {k: v for k, v in sorted(times_dict.items(), key=lambda x:x[1])}
+        sorted_keys_ls = [k for k, v in sorted_keys.items()]
+
+        ranks = []
+        for h in heuristics:
+            ranks.append(sorted_keys_ls.index(h) + 1)
+
+        no_rank.append(ranks[0])
+        naive_rank.append(ranks[1])
+        state_lp_rank.append(ranks[2])
+        state_ilp_rank.append(ranks[3])
+        ext_lp_rank.append(ranks[4])
+        ext_ilp_rank.append(ranks[5])
+
+    encode_ranks.insert(1, "No Heuristic Rank", no_rank)
+    encode_ranks.insert(2, "Naive Rank", naive_rank)
+    encode_ranks.insert(3, "State LP Rank", state_lp_rank)
+    encode_ranks.insert(4, "State ILP Rank", state_ilp_rank)
+    encode_ranks.insert(5, "Ext. LP Rank", ext_lp_rank)
+    encode_ranks.insert(6, "Ext. ILP Rank", ext_ilp_rank)
+
+    return encode_ranks
+
+
 def get_features_data(data):
 
     #features_data = []
@@ -296,7 +356,9 @@ def get_features_data(data):
                "Parallelism Sum",
                "Parallelism Sum Ratio", "Parallelism Mult", "Parallelism Mult Ratio",
                "Choice Sum", "Choice Sum Ratio", "Choice Mult", "Choice Mult Ratio",
-               "Simplicity", "Free-Choice", "Visited States", "Deadlocks", "Boundedness"]
+               "Simplicity", "Free-Choice",
+               #"Visited States", "Deadlocks", "Boundedness"
+               ]
 
     features_df = pd.DataFrame(feature, columns=columns, dtype=float)
 
@@ -365,7 +427,8 @@ data_features, len_features = get_features_data(test_road)
 """
 data = get_merged_data()
 data_labeled = label_data(data)
-data_features, len_features = get_features_data(data_labeled)
+data_ranked = rank_heuristics(data_labeled)
+data_features, len_features = get_features_data(data_ranked)
 
 # road_heuristic = pd.read_pickle("results/road_heuristic_3.pkl")
 # road_features, _ = preprocess_data.get_features_data(road_heuristic)
