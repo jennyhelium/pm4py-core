@@ -51,6 +51,7 @@ def get_merged_data():
     sepsis_inductive_02 = pd.read_pickle("results/sepsis_inductive_02_updated.pkl")
     sepsis_filtered = pd.read_pickle("results/sepsis_filtered_inductive_0_3.pkl")
     sepsis_max_cov = pd.read_pickle("results/sepsis_max_cov_filtered_inductive_0_3.pkl")
+    sepsis_top_10 = pd.read_pickle("results/sepsis_top_10_inductive_0_curr.pkl")  # 343
 
     italian_alpha = pd.read_pickle("results/italian_alpha_0.2_3.pkl")
 
@@ -103,6 +104,7 @@ def get_merged_data():
     data = data._append(sepsis_inductive_02)
     data = data._append(sepsis_filtered)
     data = data._append(sepsis_max_cov)
+    data = data._append(sepsis_top_10)
 
     data = data._append(italian_alpha)
 
@@ -282,40 +284,48 @@ def label_data(data):
     return encode_times_drop_timeout.reset_index(drop=True)
 
 
-def rank_heuristics(data):
+def rank_heuristics(data, use_ilp=True, reverse=False, column_no="No Heuristic Time", column_naive="Naive Time",
+                    column_state_lp="State Eq. LP Time", column_state_ilp="State Eq. ILP Time",
+                    column_ext_lp="Ext. Eq. LP Time", column_ext_ilp="Ext. Eq. ILP Time"):
     encode_ranks = data.copy()
 
     no_rank = []
     naive_rank = []
     state_lp_rank = []
-    state_ilp_rank = []
     ext_lp_rank = []
-    ext_ilp_rank = []
+
+    if use_ilp:
+        state_ilp_rank = []
+        ext_ilp_rank = []
 
     for i in encode_ranks.index:
         row = data.iloc[i, :]
 
-        times = []
-        no_time = row["No Heuristic Time"]
-        naive_time = row["Naive Time"]
-        state_lp_time = row["State Eq. LP Time"]
-        state_ilp_time = row["State Eq. ILP Time"]
-        ext_lp_time = row["Ext. Eq. LP Time"]
-        ext_ilp_time = row["Ext. Eq. ILP Time"]
+        # times = []
+        if use_ilp:
+            no_time = row[column_no]
+            naive_time = row[column_naive]
+            state_lp_time = row[column_state_lp]
+            state_ilp_time = row[column_state_ilp]
+            ext_lp_time = row[column_ext_lp]
+            ext_ilp_time = row[column_ext_ilp]
 
-        times.append(-no_time)
-        times.append(-naive_time)
-        times.append(-state_lp_time)
-        times.append(-state_ilp_time)
-        times.append(-ext_lp_time)
-        times.append(-ext_ilp_time)
+        else:
+            no_time = row[column_no]
+            naive_time = row[column_naive]
+            state_lp_time = row[column_state_lp]
+            ext_lp_time = row[column_ext_lp]
 
-        heuristics = ["No Heuristic", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+        if use_ilp:
+            heuristics = ["No Heuristic", "Naive", "State LP", "Ext. LP", "State ILP", "Ext. ILP"]
+            times_dict = {"No Heuristic": no_time, "Naive": naive_time, "State LP": state_lp_time,
+                          "State ILP": state_ilp_time, "Ext. LP": ext_lp_time, "Ext. ILP": ext_ilp_time}
+        else:
+            heuristics = ["No Heuristic", "Naive", "State LP", "Ext. LP"]
+            times_dict = {"No Heuristic": no_time, "Naive": naive_time, "State LP": state_lp_time,
+                          "Ext. LP": ext_lp_time}
 
-        times_dict = {"No Heuristic": no_time, "Naive": naive_time, "State LP": state_lp_time,
-                      "State ILP": state_ilp_time, "Ext. LP": ext_lp_time, "Ext. ILP": ext_ilp_time}
-
-        sorted_keys = {k: v for k, v in sorted(times_dict.items(), key=lambda x: x[1])}
+        sorted_keys = {k: v for k, v in sorted(times_dict.items(), key=lambda x: x[1], reverse=reverse)}
         sorted_keys_ls = [k for k, v in sorted_keys.items()]
 
         ranks = []
@@ -325,16 +335,20 @@ def rank_heuristics(data):
         no_rank.append(ranks[0])
         naive_rank.append(ranks[1])
         state_lp_rank.append(ranks[2])
-        state_ilp_rank.append(ranks[3])
-        ext_lp_rank.append(ranks[4])
-        ext_ilp_rank.append(ranks[5])
+        ext_lp_rank.append(ranks[3])
+
+        if use_ilp:
+            state_ilp_rank.append(ranks[4])
+            ext_ilp_rank.append(ranks[5])
 
     encode_ranks.insert(1, "No Heuristic Rank", no_rank)
     encode_ranks.insert(2, "Naive Rank", naive_rank)
     encode_ranks.insert(3, "State LP Rank", state_lp_rank)
-    encode_ranks.insert(4, "State ILP Rank", state_ilp_rank)
-    encode_ranks.insert(5, "Ext. LP Rank", ext_lp_rank)
-    encode_ranks.insert(6, "Ext. ILP Rank", ext_ilp_rank)
+    encode_ranks.insert(4, "Ext. LP Rank", ext_lp_rank)
+
+    if use_ilp:
+        encode_ranks.insert(5, "State ILP Rank", state_ilp_rank)
+        encode_ranks.insert(6, "Ext. ILP Rank", ext_ilp_rank)
 
     return encode_ranks
 
@@ -438,8 +452,52 @@ def get_train_test_set(data, ratio=0.8):
     """
 
 
-def ranking_accuracy():
-    pass
+def ranking_accuracy_top_k(df_true, df_proba, k, use_ilp=False):
+    """
+    Computes the score of the optimal heuristic in the top k predictions
+    Parameters
+    ----------
+    df_true
+    df_proba
+    k
+    use_ilp
+
+    Returns
+    -------
+
+    """
+
+    num_in_top_k = 0
+    total = len(df_true)
+    for i in range(total):
+        row_true = df_true.iloc[i, :]
+        row_predict = df_proba.iloc[i, :]
+        if not use_ilp:
+            ranks_true = {"No Heuristic": row_true["No Heuristic Rank"], "Naive": row_true["Naive Rank"],
+                          "State LP": row_true["State LP Rank"], "Ext. LP": row_true["Ext. LP Rank"]}
+            ranks_predict = {"No Heuristic": row_predict["No Heuristic Rank"], "Naive": row_predict["Naive Rank"],
+                             "State LP": row_predict["State LP Rank"], "Ext. LP": row_predict["Ext. LP Rank"]}
+
+        else:
+            ranks_true = {"No Heuristic": row_true["No Heuristic Rank"], "Naive": row_true["Naive Rank"],
+                          "State LP": row_true["State LP Rank"], "Ext. LP": row_true["Ext. LP Rank"],
+                          "State ILP": row_true["State ILP Rank"], "Ext. ILP": row_true["Ext. ILP Rank"]}
+            ranks_predict = {"No Heuristic": row_predict["No Heuristic Rank"], "Naive": row_predict["Naive Rank"],
+                             "State LP": row_predict["State LP Rank"], "Ext. LP": row_predict["Ext. LP Rank"],
+                             "State ILP": row_predict["State ILP Rank"], "Ext. ILP": row_predict["Ext. ILP Rank"]}
+
+        sorted_keys_true = {k: v for k, v in sorted(ranks_true.items(), key=lambda x: x[1])}
+        sorted_ls_true = [k for k, v in sorted_keys_true.items()]
+
+        sorted_keys_proba = {k: v for k, v in sorted(ranks_predict.items(), key=lambda x: x[1])}
+        sorted_ls_proba = [k for k, v in sorted_keys_proba.items()]
+
+        for j in range(k):
+            if sorted_ls_true[0] == sorted_ls_proba[j]:
+                num_in_top_k += 1
+                break
+
+    return num_in_top_k / total
 
 
 def mean_reciprocal_rank():
@@ -461,7 +519,7 @@ if __name__ == "__main__":
     """
     data = get_merged_data()
     data_labeled = label_data(data)
-    data_ranked = rank_heuristics(data_labeled)
+    data_ranked = rank_heuristics(data_labeled, use_ilp=False)
     data_features, len_features = get_features_data(data_ranked)
 
     # road_heuristic = pd.read_pickle("results/road_heuristic_3.pkl")
@@ -508,6 +566,7 @@ if __name__ == "__main__":
         "SVC: Number of mislabeled points out of a total %d points : %d" % (X_test.shape[0], (y_test != y_pred_svc).sum()))
     """
     dtree = DecisionTreeClassifier().fit(X_train_features, y_train)
+    # dtree = DecisionTreeClassifier().fit(X_over, y_over)
     y_pred_tree = dtree.predict(X_test_features)
     print("Decision Tree: Number of mislabeled points out of a total %d points : %d" % (
         X_test.shape[0], (y_test != y_pred_tree).sum()))
@@ -550,15 +609,13 @@ if __name__ == "__main__":
     end_predict_mlp = time.time()
     time_predict_mlp = end_predict_mlp - start_predict_mlp
 
-    proba_mlp = mlp.predict_proba(X_test_features)
+    mlp_labels = mlp.classes_
 
     print("MLP: Number of mislabeled points out of a total %d points : %d" % (
         X_test.shape[0], (y_test != y_pred_mlp).sum()))
 
     score = metrics.accuracy_score(y_test, y_pred_mlp)
     print("MLP accuracy:   %0.3f" % score)
-
-    mlp_labels = mlp.classes_
 
     class_report = metrics.classification_report(y_test, y_pred_mlp, target_names=mlp_labels)
 
@@ -576,6 +633,16 @@ if __name__ == "__main__":
     # disp = metrics.ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=mlp_labels)
     # disp.plot()
     # plt.show()
+
+    proba_mlp = mlp.predict_proba(X_test_features)
+    proba_df = pd.DataFrame(proba_mlp, columns=mlp_labels)
+    proba_ranks = rank_heuristics(proba_df, use_ilp=False, reverse=True, column_no="No Heuristic", column_naive="Naive",
+                              column_state_lp="State Eq. LP", column_ext_lp="Ext. Eq. LP")
+
+    k = 3
+    for i in range(k):
+        rank_in_top_k = ranking_accuracy_top_k(X_test, proba_ranks, i)
+        print("Rank accuracy of top ", k, ": ", rank_in_top_k)
 
     # Ensembles
 
@@ -664,13 +731,12 @@ if __name__ == "__main__":
     random_queued_states = statistical_numbers.states_optimal_heuristics(X_test, False, random_idx)
 
     plt.rcParams.update(plt.rcParamsDefault)
-    """
     statistical_numbers.plot_multiple_bars_h(optimal_time, [random_time, time_model], time_heuristics,
-                                           "Time in seconds", "Computation Time MLP Model")
+                                             "Time in seconds", "Computation Time MLP Model")
     statistical_numbers.plot_multiple_bars_h(optimal_queued_states, [random_queued_states, model_queued_states],
-                                           queued_states_heuristic, "Number of queued states",
-                                           "Queued States")
-    
+                                             queued_states_heuristic, "Number of queued states",
+                                             "Queued States")
+    """
     statistical_numbers.plot_multiple_bars(optimal_time, [random_time, time_relaxed_model], time_heuristics,
                                            "Time in seconds", "Computation Time Relaxed Model")
     
