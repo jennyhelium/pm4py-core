@@ -10,7 +10,8 @@ from pm4py.objects import petri_net
 from statistics import mean
 
 
-def random_playout(net, initial_marking, final_marking, no_traces, max_trace_length, semantics=petri_net.semantics.ClassicSemantics()):
+def random_playout(net, initial_marking, final_marking, no_traces, max_trace_length,
+                   semantics=petri_net.semantics.ClassicSemantics()):
 
     visited = 0
     queued = 0
@@ -49,6 +50,7 @@ def random_playout(net, initial_marking, final_marking, no_traces, max_trace_len
                         boundedness = max_value
 
             all_enabled_trans = semantics.enabled_transitions(net, marking)
+            queued += len(all_enabled_trans)
 
             if final_marking is not None and (final_marking == marking):  # final marking reached
                 trans = random.choice(list(all_enabled_trans.union({None})))  # pick random enabled transition
@@ -71,7 +73,7 @@ def random_playout(net, initial_marking, final_marking, no_traces, max_trace_len
 
         i += 1
 
-    return all_visited_elements, visited, deadlock, boundedness
+    return all_visited_elements, visited, queued, deadlock, boundedness
 
 
 def free_choice(net):
@@ -296,6 +298,27 @@ def trace_loop(trace):
     return (num_repetitions, ratio, max_repetitions, max_repetitions / len(trace),
             mean_repetitions, mean_repetitions / len(trace), sum_repetitions, sum_repetitions / len(trace))
 
+def one_length_loop(trace):
+    t = trace
+
+    prev = ""
+    for i in t:
+        if prev == i:
+            return 1
+        else:
+            prev = i
+
+    return 0
+
+
+def distinct_events_trace(trace):
+    distinct_events = []
+
+    for t in trace:
+        if t not in distinct_events:
+            distinct_events.append(t)
+
+    return len(distinct_events)
 
 def transitions_no_in_arc(pn):
     transitions = pn.transitions
@@ -353,6 +376,41 @@ def matching_labels(pn, trace):
     return match_count_trace, match_count_trace / len(t), match_count_model, ratio
 
 
+def matching_starts(pn, trace):
+    start_label = trace[0]
+
+    for p in pn.places:
+        if len(p.in_arcs) == 0:
+            source = p
+
+    start_transitions = []
+    for arc in source.out_arcs:
+        start_transitions.append(arc.target.label)
+
+    if start_label in start_transitions:
+        return 1
+
+    return 0
+
+
+def matching_ends(pn, trace):
+    end_label = trace[-1]
+
+    for p in pn.places:
+        if len(p.out_arcs) == 0:
+            sink = p
+
+    end_transitions = []
+    for arc in sink.in_arcs:
+        end_transitions.append(arc.source.label)
+
+    if end_label in end_transitions:
+        return 1
+
+    return 0
+
+
+
 def token_based_reaply(trace, pn, im, fm):
     pm4py.conformance_diagnostics_token_based_replay()
 
@@ -367,13 +425,18 @@ if __name__ == "__main__":
 
     pm4py.view_petri_net(pn, im, fm)
     #print(free_choice(pn))
-    visited_elements, visited, deadlock, bound = random_playout(pn, im, fm, 5, 50)
-    print(visited_elements)
-    print(visited)
-    print(deadlock)
-    print(bound)
+    #visited_elements, visited, queued, deadlock, bound = random_playout(pn, im, fm, 5, 50)
+    #print(visited_elements)
+    #print(queued)
+    #print(visited)
+    #print(deadlock)
+    #print(bound)
 
     trace = ['examine thoroughly', 'check ticket', 'examine thoroughly', 'decide', 'reject request']
+    print(one_length_loop(trace))
+    print(distinct_events_trace(trace))
+    print(matching_starts(pn, trace))
+    print(matching_ends(pn, trace))
 """
     print(degree(pn))
     print(degree(pn, direction="out"))
