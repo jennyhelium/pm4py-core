@@ -522,6 +522,181 @@ def search_naive(sync_net, ini, fin, cost_function, skip, trace, activity_key, t
             heapq.heappush(open_set, tp)
 
 
+def search_extended_marking_eq_correct(sync_net, ini, fin, cost_function, skip, trace, activity_key, trace_net,
+                               ret_tuple_as_trans_desc=False, max_align_time_trace=sys.maxsize, int_sol=False,
+                               solver=None):
+    start_time = time.time()
+
+    # create incidence matrix for sync net
+    decorate_transitions_prepostset(sync_net)
+    decorate_places_preset_trans(sync_net)
+
+    incidence_matrix = inc_mat_construct(sync_net)
+    ini_vec, fin_vec, cost_vec = utils.__vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
+
+    a_matrix = np.asmatrix(incidence_matrix.a_matrix).astype(np.float64)
+    g_matrix = -np.eye(len(sync_net.transitions))
+    h_cvx = np.matrix(np.zeros(len(sync_net.transitions))).transpose()
+    cost_vec = [x * 1.0 for x in cost_vec]
+
+    use_cvxopt = False
+    if lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN or lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP:
+        use_cvxopt = True
+
+    if use_cvxopt:
+        # not available in the latest version of PM4Py
+        from cvxopt import matrix
+
+        a_matrix = matrix(a_matrix)
+        g_matrix = matrix(g_matrix)
+        h_cvx = matrix(h_cvx)
+        cost_vec = matrix(cost_vec)
+
+    # init k for k-based underestimation
+    split_points = []
+    lp_solved = 0
+
+    while True:  # no solution
+        # init set C "closed" which contains already visited markings
+        closed = set()
+
+        split_trace_ls = split_trace(trace, split_points)
+
+        h, x, ilp_solved = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix, ini,
+                                                   fin_vec, lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                                   split_trace_ls, use_cvxopt=True, heuristic="EXTENDED_STATE_EQUATION",
+                                                   int_sol=int_sol, k=len(split_points)+1)
+
+        ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
+        # init priority queue Q, sorted ascending by f = g + h
+        open_set = [ini_state]
+        heapq.heapify(open_set)
+        visited = 0
+        queued = 0
+        traversed = 0
+        lp_solved += (1 + ilp_solved)
+
+        num_explained_events = 0
+
+        trans_empty_preset = set(t for t in sync_net.transitions if len(t.in_arcs) == 0)
+
+        while not len(open_set) == 0:
+            #if (time.time() - start_time) > max_align_time_trace:
+             #   return None
+
+            curr = heapq.heappop(open_set)
+
+            current_marking = curr.m
+
+            # 12/10/2019: do it again, since the marking could be changed
+            already_closed = current_marking in closed
+            if already_closed:
+                continue
+
+            if not curr.trust:
+                # restart search with longer list of split points
+                if num_explained_events not in split_points and num_explained_events > 0:
+                    split_points.append(num_explained_events)
+                    split_points = sorted(split_points)
+                    break
+
+                # compute true estimate
+                if int_sol:
+                    h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
+                                               incidence_matrix, curr.m,
+                                               fin_vec,
+                                               lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP,
+                                               use_cvxopt=use_cvxopt)
+                else:
+                    h, x = compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
+                                               incidence_matrix, curr.m,
+                                               fin_vec,
+                                               lp_solver.DEFAULT_LP_SOLVER_VARIANT,
+                                               use_cvxopt=use_cvxopt)
+
+                lp_solved += 1
+
+                if h > curr.h:
+                    curr.h = h
+
+                tp = utils.SearchTuple(curr.g + curr.h, curr.g, curr.h, curr.m, curr.p, curr.t, x, True)
+                heapq.heappush(open_set, tp)
+                continue
+
+
+            # max allowed heuristics value (27/10/2019, due to the numerical instability of some of our solvers)
+            if curr.h > lp_solver.MAX_ALLOWED_HEURISTICS:
+                continue
+
+            # current marking can be equal to the final marking only if the heuristics
+            # (underestimation of the remaining cost) is 0. Low-hanging fruits
+            if curr.h < 0.01:
+                # if head represents final marking: return corresp. alignment by reconstructing
+                if current_marking == fin:
+                    return utils.__reconstruct_alignment(curr, visited, queued, traversed,
+                                                         ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
+                                                         lp_solved=lp_solved)
+
+            closed.add(current_marking)
+            visited += 1
+
+            num_explained_events = max(num_explained_events, explained_events(trace_net, current_marking))
+
+            # fire each enabled transition and investigate new marking
+            enabled_trans = copy(trans_empty_preset)
+            for p in current_marking:
+                for t in p.ass_trans:
+                    if t.sub_marking <= current_marking:
+                        enabled_trans.add(t)
+
+            trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans if not (
+                    t is not None and utils.__is_log_move(t, skip) and utils.__is_model_move(t, skip))]
+
+            for t, cost in trans_to_visit_with_cost:
+                traversed += 1
+                new_marking = utils.add_markings(current_marking, t.add_marking)
+
+                # if new marking in C, do nothing.
+                if new_marking in closed:
+                    continue
+
+                # if in Q, replace if lower path cost
+                # if nothing exists in Q, insert with path cost and heuristic value
+                g = curr.g + cost
+
+                queued += 1
+                h, x = utils.__derive_heuristic(incidence_matrix, cost_vec, curr.x, t, curr.h)
+                trustable = utils.__trust_solution(x)
+                new_f = g + h
+
+                tp = utils.SearchTuple(new_f, g, h, new_marking, curr, t, x, trustable)
+                heapq.heappush(open_set, tp)
+
+
+def split_trace(trace, splitpoints):
+
+    if not splitpoints:
+        return [trace]
+
+    splitted_trace = []
+
+    if len(splitpoints) == 1:
+        splitted_trace.append(trace[:splitpoints[0]])
+        splitted_trace.append(trace[splitpoints[0]:])
+        return splitted_trace
+
+    for i in range(len(splitpoints)):
+        if i == 0:
+            splitted_trace.append(trace[:splitpoints[i]])
+        elif i == (len(splitpoints) - 1):
+            splitted_trace.append(trace[splitpoints[i - 1]:splitpoints[i]])
+            splitted_trace.append(trace[splitpoints[i]:])
+        else:
+            splitted_trace.append(trace[splitpoints[i-1]:splitpoints[i]])
+
+    return splitted_trace
+
+
 def compute_exact_heuristic(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
                             marking, fin_vec, variant, trace_division=[], use_cvxopt=False, heuristic="STATE_EQUATION",
                             solver=None,
