@@ -78,15 +78,19 @@ def replace_label_by_time(ls):
         curr = ls[i].strip()
         if curr == "No Heuristic":
             ls[i] = "No Heuristic Time"
-        if curr == "Naive":
+        elif curr == "Naive":
             ls[i] = "Naive Time"
-        if curr == "State Eq. LP":
+        elif curr == "State Eq.":
             ls[i] = "State Eq. LP Time"
-        if curr == "State Eq. ILP":
+        elif curr == "State Eq. LP":
+            ls[i] = "State Eq. LP Time"
+        elif curr == "State Eq. ILP":
             ls[i] = "State Eq. ILP Time"
-        if curr == "Ext. Eq. LP":
+        elif curr == "Ext. Eq.":
             ls[i] = "Ext. Eq. LP Time"
-        if curr == "Ext. Eq. ILP":
+        elif curr == "Ext. Eq. LP":
+            ls[i] = "Ext. Eq. LP Time"
+        elif curr == "Ext. Eq. ILP":
             ls[i] = "Ext. Eq. ILP Time"
     return ls
 
@@ -249,17 +253,29 @@ def time_using_model(df, predictions):
     for i in predictions:
         row = df.iloc[row_num, :]
 
-        if i == "No Heuristic":
+        # if i == "No Heuristic":
+        #   time += row["No Heuristic Time"]
+        # elif i == "Naive":
+        #   time += row["Naive Time"]
+        # elif i == "State Eq. LP":
+        #   time += row["State Eq. LP Time"]
+        # elif i == "State Eq. ILP":
+        #   time += row["State Eq. ILP Time"]
+        # elif i == "Ext. Eq. LP":
+        #   time += row["Ext. Eq. LP Time"]
+        # elif i == "Ext. Eq. ILP":
+        #   time += row["Ext. Eq. ILP Time"]
+        if "No Heuristic" in i:
             time += row["No Heuristic Time"]
-        elif i == "Naive":
+        elif "Naive" in i:
             time += row["Naive Time"]
-        elif i == "State Eq. LP":
+        elif "State Eq. LP" in i:
             time += row["State Eq. LP Time"]
-        elif i == "State Eq. ILP":
+        elif "State Eq. ILP" in i:
             time += row["State Eq. ILP Time"]
-        elif i == "Ext. Eq. LP":
+        elif "Ext. Eq. LP" in i:
             time += row["Ext. Eq. LP Time"]
-        elif i == "Ext. Eq. ILP":
+        elif "Ext. Eq. ILP" in i:
             time += row["Ext. Eq. ILP Time"]
 
         row_num += 1
@@ -327,9 +343,12 @@ def plot_multiple_bars(optimal, model, ls_heuristics, y_label, plot_title):
     plt.show()
 
 
-def plot_multiple_bars_h(optimal, model, ls_heuristics, y_label, plot_title):
-    x = ["Optimal", "Random", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+def plot_multiple_bars_h(optimal, model, ls_heuristics, y_label, plot_title, model_name_ls=["Model"]):
+    x = ["Optimal", "Model", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
     y = ["Ext. ILP", "Ext. LP", "State ILP", "State LP", "Naive", "Dijkstra", "Random", "Optimal"]
+
+    model_name_ls_reversed = model_name_ls
+    model_name_ls_reversed.reverse()
 
     # y_optimal = [optimal for i in range(len_x)]
 
@@ -339,15 +358,15 @@ def plot_multiple_bars_h(optimal, model, ls_heuristics, y_label, plot_title):
     values = []
     values.append(optimal)
 
-    #values_y = []
-    #values_y = values_y + ls_heuristics.reverse()
+    # values_y = []
+    # values_y = values_y + ls_heuristics.reverse()
 
     if isinstance(model, list):
         for i in model:
             values.append(i)
-            #values_y.append(len(model)-i)
-        x = ["Optimal", "Random", "Model", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
-        y = ["Ext. ILP", "Ext. LP", "State ILP", "State LP", "Naive", "Dijkstra", "Model", "Random", "Optimal"]
+            # values_y.append(len(model)-i)
+        x = ["Optimal"] + model_name_ls + ["Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+        y = ["Ext. ILP", "Ext. LP", "State ILP", "State LP", "Naive", "Dijkstra"] + model_name_ls_reversed + ["Optimal"]
 
     else:
         values.append(model)
@@ -372,15 +391,16 @@ def plot_multiple_bars_h(optimal, model, ls_heuristics, y_label, plot_title):
 
     plt.axvline(optimal, color="green", linestyle="dashed", label="Optimal")
     if isinstance(model, list):
-        plt.axvline(model[0], color="r", linestyle="dashed", label="Random")
-        plt.axvline(model[1], color="b", linestyle="dashed", label="ML")
+        plt.axvline(model[0], color="r", linestyle="dashed", label=model_name_ls[1])
+        plt.axvline(model[1], color="b", linestyle="dashed", label=model_name_ls[0])
     else:
         plt.axvline(model, color="r", linestyle="dashed", label="Random")
 
-    #for i in range(len_x):
-     #   plt.text(values[i] + 0.25, i, round(values[i], 3), ha="center")
+    # for i in range(len_x):
+    #   plt.text(values[i] + 0.25, i, round(values[i], 3), ha="center")
 
-    #plt.style.use('fivethirtyeight')
+    # plt.style.use('fivethirtyeight')
+    plt.rcParams.update(plt.rcParamsDefault)
 
     plt.xscale("log")
     plt.yticks([r for r in range(len_x)], y)
@@ -390,6 +410,134 @@ def plot_multiple_bars_h(optimal, model, ls_heuristics, y_label, plot_title):
     plt.legend()
     plt.savefig("visualization/" + plot_title + ".png")
     plt.show()
+
+
+def plot_multiple_bars_h_annot(optimal, model, ls_heuristics, y_label, plot_title, x_heuristics=None,
+                               y_heuristics=None):
+    if y_heuristics is None:
+        y_heuristics = ["Ext. ILP", "Ext. LP", "State ILP", "State LP", "Naive", "Dijkstra",
+                        "Model with recommendation function", "Model naive", "Optimal"]
+    if x_heuristics is None:
+        x_heuristics = ["Optimal", "Model naive", "Model with recommendation function", "Dijkstra",
+                        "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+    x = x_heuristics
+    y = y_heuristics
+
+    # y_optimal = [optimal for i in range(len_x)]
+
+    # y_model = [model for i in range(len_x)]
+    z_others = ls_heuristics
+
+    values = []
+    values.append(optimal)
+
+    # values_y = []
+    # values_y = values_y + ls_heuristics.reverse()
+
+    if isinstance(model, list):
+        for i in model:
+            values.append(i)
+            # values_y.append(len(model)-i)
+        # x = ["Optimal", "Random", "Model", "Dijkstra", "Naive", "State LP", "State ILP", "Ext. LP", "Ext. ILP"]
+        # y = ["Ext. ILP", "Ext. LP", "State ILP", "State LP", "Naive", "Dijkstra", "Model", "Random", "Optimal"]
+
+    else:
+        values.append(model)
+
+    values = values + ls_heuristics
+    values.reverse()
+
+    len_x = len(x)
+    x_axis = np.arange(len_x)
+
+    bar_width = 0.25
+
+    br1 = x_axis
+
+    plt.barh(br1, values, bar_width)
+
+    plt.axvline(optimal, color="green", linestyle="dashed", label="Optimal")
+    if isinstance(model, list):
+        plt.axvline(model[0], color="r", linestyle="dashed", label="Random")
+        plt.axvline(model[1], color="b", linestyle="dashed", label="ML")
+    else:
+        plt.axvline(model, color="r", linestyle="dashed", label="Random")
+
+    # for i in range(len_x):
+    #   plt.text(values[i] + 0.25, i, round(values[i], 3), ha="center")
+
+    # plt.style.use('fivethirtyeight')
+    plt.rcParams.update(plt.rcParamsDefault)
+
+    plt.xscale("log")
+    plt.yticks([r for r in range(len_x)], y)
+    plt.xlabel(y_label)
+    plt.ylabel("Comparison of optimal heuristics and only using one heuristic")
+    plt.title(plot_title)
+    plt.legend()
+    plt.savefig("visualization/" + plot_title + ".png")
+    plt.show()
+
+
+def return_model_metrics(x_test, predictions, timeout):
+    """
+    return evaluation values
+    Parameters
+    ----------
+    x_test
+    predictions
+
+    Returns
+    -------
+
+    """
+    model_idx = replace_label_by_time(predictions)
+    model_time = time_using_model(x_test, model_idx)
+    model_timeouts, _ = timeouts_optimal_heuristics(x_test, timeout, model_idx)
+    model_lps = lps_optimal_heuristics(x_test, model_idx)
+    model_queued_states = states_optimal_heuristics(x_test, False, model_idx)
+
+    return model_idx, model_time, model_timeouts, model_lps, model_queued_states
+
+
+def evaluate_time(df, time_ls, model_name_ls):
+    optimal_time = time_with_optimal_heuristics(df)
+    time_heuristics = time_using_one_heuristic(df)
+
+    plot_multiple_bars_h(optimal_time, time_ls, time_heuristics, "Time in seconds",
+                         "Computation Time", model_name_ls)
+
+
+def evaluate_timeouts(df, time_ls, model_name_ls, timeout):
+    optimal_timeouts, _ = timeouts_optimal_heuristics(df, timeout)
+
+    timeouts_heuristics = []
+
+    heuristics = ["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time", "Ext. Eq. LP Time",
+                  "Ext. Eq. ILP Time"]
+
+    for h in heuristics:
+        num_timeouts = len(df[df[h].ge(timeout)])
+        timeouts_heuristics.append(num_timeouts)
+
+    plot_multiple_bars_h(optimal_timeouts, time_ls, timeouts_heuristics, "Number of timeouts",
+                         "Timeouts", model_name_ls)
+
+
+def evaluate_lps(df, time_ls, model_name_ls):
+    optimal_lps = lps_optimal_heuristics(df)
+    lps_one_heuristic = lps_using_one_heuristic(df)
+
+    plot_multiple_bars_h(optimal_lps, time_ls, lps_one_heuristic, "Number of solved lps",
+                         "Solved LPs", model_name_ls)
+
+
+def evaluate_queued(df, time_ls, model_name_ls):
+    optimal_states = states_optimal_heuristics(df, False)
+    queued_states_heuristic = states_one_heuristic(df, False)
+
+    plot_multiple_bars_h(optimal_states, time_ls, queued_states_heuristic, "Number of queued states",
+                         "Queued States", model_name_ls)
 
 
 def get_winners_grouped_by_heuristic(df, timeout):
@@ -750,7 +898,6 @@ if __name__ == "__main__":
     plot_multiple_bars(optimal_lps, random_lps, lps_one_heuristic, "Number of solved lps", "Solved LPs")
     plot_multiple_bars(optimal_visited_states, random_visited_states, visited_states_heuristic,
                        "Number of visited states", "Visited States")
-
 
     no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp = get_winners_grouped_by_heuristic(df, 180)
     print("Avg fitness winners ", get_avg_value_winners(no_heuristic, naive, state_lp, state_ilp, ext_lp, ext_ilp,
