@@ -638,10 +638,12 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
     # progress = __get_progress_bar(len(one_tr_per_var), parameters)
     parameters[Parameters.BEST_WORST_COST_INTERNAL] = best_worst_cost
 
-    heuristics = ["NO_HEURISTIC", "NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
-                  "EXTENDED_STATE_EQUATION_ILP"]
-    heuristics_lp = ["STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
-                     "EXTENDED_STATE_EQUATION_ILP"]
+    #heuristics = ["NO_HEURISTIC", "NAIVE", "STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
+     #             "EXTENDED_STATE_EQUATION_ILP"]
+    #heuristics_lp = ["STATE_EQUATION_LP", "STATE_EQUATION_ILP", "EXTENDED_STATE_EQUATION_LP",
+     #                "EXTENDED_STATE_EQUATION_ILP"]
+    heuristics = ["EXTENDED_STATE_EQUATION_LP", "EXTENDED_STATE_EQUATION_ILP"]
+    heuristics_lp = ["EXTENDED_STATE_EQUATION_LP", "EXTENDED_STATE_EQUATION_ILP"]
 
     # [trace, petri net, init_marking, final_marking, ]
     data = []
@@ -651,7 +653,7 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
     len_var_tr = len(one_tr_per_var)
 
     import psutil
-    pool = Pool(processes=np.max([psutil.cpu_count(logical=False) - 3, 1]))
+    pool = Pool(processes=np.max([psutil.cpu_count(logical=False) - 2, 1]))
 
     for trace in one_tr_per_var:
 
@@ -705,37 +707,43 @@ def create_data_pool(log, petri_net, initial_marking, final_marking, variance, n
                             num_lp.append("Result None")
 
                 except:
-                    times.append(max_align_time_case)
+                    times.append(timeout_time)
                     alignments.append(None)
                     if len(times) > 2 and len(num_lp) < 4:
                         num_lp.append("Timeout")
 
-            if not all([x is None for x in alignments]):
-                break
-            timeout_time += 300
-            if timeout_time > 780:
-                break
+            break
+            #if not all([x is None for x in alignments]):
+             #   break
+            #timeout_time += 300
+            #if timeout_time > 780:
+             #   break
 
         data_per_trace = (data_per_trace + alignments + times + num_lp)
         data.append(data_per_trace)
 
         df = pd.DataFrame(data,
-                          columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
-                                   "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
-                                   "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
-                                   "Ext. Eq. LP Time", "Ext. Eq. ILP Time", "State Eq. LP Solved LP",
-                                   "State Eq. ILP Solved LP", "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
+                          columns=["Trace", "Petri Net", "Initial Marking", "Final Marking",
+                                   #"No Heuristic", "Naive","State Eq. LP", "State Eq. ILP",
+                                   "Ext. Eq. LP", "Ext. Eq. ILP",
+                                   #"No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                                   "Ext. Eq. LP Time", "Ext. Eq. ILP Time",
+                                   #"State Eq. LP Solved LP", "State Eq. ILP Solved LP",
+                                   "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
 
         df.to_pickle(name_df + "_" + miner + "_" + str(noise) + "_curr.pkl")
 
         count_trace = count_trace + 1
     pool.close()
 
-    df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking", "No Heuristic", "Naive",
-                                     "State Eq. LP", "State Eq. ILP", "Ext. Eq. LP", "Ext. Eq. ILP",
-                                     "No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
-                                     "Ext. Eq. LP Time", "Ext. Eq. ILP Time", "State Eq. LP Solved LP",
-                                     "State Eq. ILP Solved LP", "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
+    df = pd.DataFrame(data, columns=["Trace", "Petri Net", "Initial Marking", "Final Marking",
+                                     #"No Heuristic", "Naive",
+                                     #"State Eq. LP", "State Eq. ILP",
+                                     "Ext. Eq. LP", "Ext. Eq. ILP",
+                                     #"No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
+                                     "Ext. Eq. LP Time", "Ext. Eq. ILP Time",
+                                     #"State Eq. LP Solved LP","State Eq. ILP Solved LP",
+                                     "Ext. Eq. LP Solved LP", "Ext. Eq. ILP Solved LP"])
 
     # create_bar_plot(df)
     # create_box_plots(df)
