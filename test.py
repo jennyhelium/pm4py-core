@@ -6,12 +6,16 @@ from pm4py.objects.petri_net.obj import PetriNet, Marking
 from pm4py.algo.conformance.alignments.petri_net import algorithm
 from pm4py.algo.conformance.alignments.petri_net import variants
 
+import resource
+import sys
 
-# def execute(df, miner="inductive", variance=3):
-def align(df, name_df, miner="alpha", noise_threshold=0.2):
+
+def align(df, name_df, miner="alpha", noise_threshold=0.2, use_filter=True, top_k=1, use_k=True, cov=0.05, use_min_cov=True):
     print('Test ' + name_df + " " + miner + " " + str(noise_threshold))
     # discover petri net
+    variance = 3
     print(name_df)
+
     if name_df == "prFm6":
         pn, im, fm = pm4py.read_pnml("pm4py/data/prFm6.pnml")
         fm = Marking()
@@ -22,9 +26,6 @@ def align(df, name_df, miner="alpha", noise_threshold=0.2):
         fm[n281] = 1
         miner = "no"
 
-    #  print(im, fm)
-    # name_df = "prFm6"
-
     elif name_df == "prGm6":
         pn, im, fm = pm4py.read_pnml("pm4py/data/prGm6.pnml")
         fm = Marking()
@@ -33,51 +34,96 @@ def align(df, name_df, miner="alpha", noise_threshold=0.2):
                 n326 = p
         fm[n326] = 1
         miner = "no"
-    # name_df = "prGm6"
-    #  print(im, fm)
+
     elif miner == "alpha":
         # alpha miner
         pn, im, fm = pm4py.discover_petri_net_alpha(df)
 
-        # TODO fm = []
-        if len(fm) == 0:
-            print("Empty final marking, create new final marking.")
-            fm = Marking()
-
-            for p in pn.places:
-                if len(p.out_arcs) == 0:
-                    final_place = p
-
-            fm[final_place] = 1
-
-    else:
+    elif miner == "inductive":
         # inductive miner
-        pn, im, fm = pm4py.discover_petri_net_inductive(df, noise_threshold)
+        if use_filter:
+            print("Filter log")
+
+            if not use_k:
+                if use_min_cov:
+                    # min_coverage
+                    print("Min coverage", cov)
+                    filtered_log = pm4py.filter_variants_by_coverage_percentage(df, cov)
+                else:
+                    # max_coverage
+                    print("Max coverage", cov)
+                    filtered_log = pm4py.filter_variants_by_maximum_coverage_percentage(df, cov)
+            else:
+                # top k
+                k = top_k
+                filtered_log = pm4py.filter_variants_top_k(df, k)
+
+            pn, im, fm = pm4py.discover_petri_net_inductive(filtered_log)
+
+
+            if not use_k:
+                if use_min_cov:
+                    pm4py.save_vis_petri_net(pn, im, fm,
+                                             file_path="visualization/petri_net/" + name_df + "_filtered_" + miner + "_" +
+                                                       str(variance) + ".png")
+                else:
+                    pm4py.save_vis_petri_net(pn, im, fm,
+                                             file_path="visualization/petri_net/" + name_df + "_max_cov_filtered_" + miner + "_" +
+                                                       str(variance) + ".png")
+            else:
+                pm4py.save_vis_petri_net(pn, im, fm, file_path="visualization/petri_net/" + name_df + "_top_" + str(k)
+                                                               + "_" + miner + "_" + str(variance) + ".png")
+        else:
+            pn, im, fm = pm4py.discover_petri_net_inductive(df, noise_threshold=noise_threshold)
+
+
+    elif miner == "heuristic":
+        pn, im, fm = pm4py.discover_petri_net_heuristics(df, dependency_threshold=0.99)
+
+    if len(fm) == 0:
+        print("Empty final marking, create new final marking.")
+        fm = Marking()
+
+        for p in pn.places:
+            if len(p.out_arcs) == 0:
+                final_place = p
+
+        fm[final_place] = 1
+
     print("Model discovered")
 
     variance = 3
-    #miner = "no"
+    # miner = "no"
 
-    pm4py.save_vis_petri_net(pn, im, fm, file_path="visualization/petri_net/" + name_df + "_" + miner + "_" + str(
-        variance) + ".png")
+    # pm4py.save_vis_petri_net(pn, im, fm, file_path="visualization/petri_net/" + name_df + "_" + miner + "_" + str(
+    #   variance) + ".png")
 
     print("Model saved")
-    result = algorithm.create_data(df, pn, im, fm, variance, name_df, miner, variant=variants.a_star)
-    result.to_pickle("results/" + name_df + "_" + miner + "_" + str(variance) + ".pkl")
+    result = algorithm.create_data_pool(df, pn, im, fm, variance, name_df, miner, noise_threshold,
+                                        variant=variants.a_star)
+    if use_filter:
+        if not use_k:
+            if use_min_cov:
+                result.to_pickle("results/" + name_df + "_filtered_" + miner + "_" + str(noise_threshold) + "_" + str(
+                variance) + ".pkl")
+            else:
+                result.to_pickle("results/" + name_df + "_max_cov_filtered_" + miner + "_" + str(noise_threshold) + "_" + str(
+                    variance) + ".pkl")
+        else:
+            result.to_pickle("results/" + name_df + "_top_" + str(k) + "_ext_" + miner + "_" + str(noise_threshold) + "_" +
+                             str(variance) + ".pkl")
+    else:
+        result.to_pickle("results/" + name_df + "_ext_" + miner + "_" + str(noise_threshold) + "_" +
+                         str(variance) + ".pkl")
 
     print(result)
+    return result
 
 
 def get_var_name(var):
     for name, value in globals().items():
         if value is var:
             return name
-
-
-# df_italian = pm4py.read_xes("pm4py/data/ItalianHelpdeskFinal_complete.xes")
-# bpi12 = pm4py.read_xes("pm4py/data/BPI_Challenge_2012.xes")
-# sepsis = pm4py.read_xes("pm4py/data/Sepsis Cases - Event Log.xes")
-# road = pm4py.read_xes("pm4py/data/Road_Traffic_Fine_Management_Process.xes")
 
 def test_process():
     procs = []
@@ -93,114 +139,52 @@ def test_process():
 
 
 if __name__ == "__main__":
-    prFm6 = pm4py.read_xes("pm4py/data/prFm6.xes")
-    prGm6 = pm4py.read_xes("pm4py/data/prGm6.xes")
+    print(resource.getrlimit(resource.RLIMIT_STACK))
+    print(sys.getrecursionlimit())
+
+    max_rec = 0x100000
+
+    # May segfault without this line. 0x100 is a guess at the size of each stack frame.
+    resource.setrlimit(resource.RLIMIT_STACK, [0x100 * max_rec, resource.RLIM_INFINITY])
+    sys.setrecursionlimit(max_rec)
+
+    #prFm6 = pm4py.read_xes("pm4py/data/prFm6.xes")
+    #prGm6 = pm4py.read_xes("pm4py/data/prGm6.xes")
 
     #df_problems = pm4py.format_dataframe(pd.read_csv('pm4py/data/running_example_broken.csv', sep=';'),
-     #                                    case_id='case:concept:name', activity_key='concept:name',
-      #                                   timestamp_key='time:timestamp')
+     #                                   case_id='case:concept:name', activity_key='concept:name',
+      #                                 timestamp_key='time:timestamp')
+
+    bpi12 = pm4py.read_xes("pm4py/data/BPI_Challenge_2012.xes")
+    road = pm4py.read_xes("pm4py/data/Road_Traffic_Fine_Management_Process.xes")
+    sepsis = pm4py.read_xes("pm4py/data/Sepsis Cases - Event Log.xes")
 
     #permit = pm4py.read_xes("pm4py/data/PermitLog.xes")
     #prepaid = pm4py.read_xes("pm4py/data/PrepaidTravelCost.xes")
     #international_declaration = pm4py.read_xes("pm4py/data/InternationalDeclarations.xes")
     #request = pm4py.read_xes("pm4py/data/RequestForPayment.xes")
-
     #domestic = pm4py.read_xes("pm4py/data/DomesticDeclarations.xes")
 
-    #data = [prepaid, permit]
+    #data = [road, domestic, request, prepaid, international_declaration, sepsis, bpi12, permit]
+    #data = [permit]
+    data = [road, sepsis, bpi12]
 
-    #data = [df_problems]
-
-    data = [prFm6, prGm6]
-    #data = [request, international_declaration]
-
-    #data = [domestic]
     procs = []
 
     for d in data:
         name_df = get_var_name(d)
-        proc_alpha = Process(target=align, args=[d, name_df])
-        #proc_im = Process(target=align, args=[d, name_df, "inductive"])
+        #align(d, name_df, "inductive", noise_threshold=0, use_filter=True, use_min_cov=True)
+        #align(d, name_df, "inductive", noise_threshold=0, use_filter=True, use_min_cov=False)
+        align(d, name_df, "inductive", noise_threshold=0.2, use_filter=False, top_k=1, use_k=True, use_min_cov=False)
+        #align(d, name_df, "inductive", noise_threshold=0, use_filter=True, top_k=5, use_k=True, use_min_cov=False)
+        #align(d, name_df, "inductive", noise_threshold=0, use_filter=True, top_k=10, use_k=True, use_min_cov=False)
 
-        procs.append(proc_alpha)
-        #procs.append(proc_im)
-
-        proc_alpha.start()
-        #proc_im.start()
-
-    for proc in procs:
-        proc.join()
-    
     print("Done")
 
-    #for d in data:
-     #   name_df = get_var_name(d)
-      #  align(d, name_df)
-
-# inductive miner
-# pn, im, fm = pm4py.discover_petri_net_inductive(df)
-# alpha miner
-# alpha_pn, alpha_im, alpha_fm = pm4py.discover_petri_net_alpha(df)
-# heuristic miner, param: dependency_threshold
-# heuristic_pn, heuristic_im, heuristic_fm = pm4py.discover_petri_net_heuristics(df, dependency_threshold=0.99)
-
-# italian df:
-# alpha_pn_it, alpha_im_it, alpha_fm_it = pm4py.discover_petri_net_alpha(df_italian)
-# heuristic_pn_it, heuristic_im_it, heuristic_fm_it = pm4py.discover_petri_net_heuristics(df_italian, dependency_threshold=0.99)
-# inductive_pn_it_noise, inductive_im_it_noise, inductive_fm_it_noise = pm4py.discover_petri_net_inductive(df_italian, noise_threshold=0.2)
-# inductive_pn_it, inductive_im_it, inductive_fm_it = pm4py.discover_petri_net_inductive(df_italian)
-
-# Sepsis
-# pn_alpha_sepsis, im_alpha_sepsis, fm_alpha_sepsis =  pm4py.discover_petri_net_alpha(df_sepsis)
-# pn_im_sepsis, im_im_sepsis, fm_im_sepsis = pm4py.discover_petri_net_inductive(df_sepsis)
-
-# pm4py.view_petri_net(pn_alpha_sepsis, im_alpha_sepsis, fm_alpha_sepsis)
-# pm4py.view_petri_net(pn_im_sepsis, im_im_sepsis, fm_im_sepsis)
 
 # print(algorithm.create_data(df_sepsis, pn_im_sepsis, im_im_sepsis, fm_im_sepsis, variant=variants.a_star))
 
-
-# pm4py.view_petri_net(pn_bpi, im_bpi, fm_bpi)
-# print(algorithm.create_data(df_bpi12, pn_bpi, im_bpi, fm_bpi, variant=variants.a_star))
-
-
-# pm4py.view_petri_net(alpha_pn_it, alpha_im_it, alpha_fm_it)
-# pm4py.view_petri_net(heuristic_pn_it, heuristic_im_it, heuristic_fm_it)
-# pm4py.view_petri_net(inductive_pn_it, inductive_im_it, inductive_fm_it)
-# pm4py.view_petri_net(inductive_pn_it_noise, inductive_im_it_noise, inductive_fm_it_noise)
-# pm4py.view_petri_net(pn, im, fm)
-
-# pm4py.view_petri_net(pn, im, fm)
-
-
 # log = pm4py.convert_to_event_log(df_problems)
 
-# pn_list = []
-# im_list = []
-# fm_list = []
-
-# pn_list.append(alpha_pn_it)
-# pn_list.append(heuristic_pn_it)
-# pn_list.append(inductive_pn_it)
-# pn_list.append(inductive_pn_it_noise)
-
-# im_list.append(alpha_im_it)
-# im_list.append(heuristic_im_it)
-# im_list.append(inductive_im_it)
-# im_list.append(inductive_im_it_noise)
-
-# fm_list.append(alpha_fm_it)
-# fm_list.append(heuristic_fm_it)
-# fm_list.append(inductive_fm_it)
-# fm_list.append(inductive_fm_it_noise)
-
-# print(algorithm.create_data_test(df_italian, pn_list, im_list, fm_list, variant=variants.a_star))
-
 # print(algorithm.create_data(log, pn, im, fm, variant=variants.a_star))
-# print(algorithm.create_data(df_italian, inductive_pn_it_noise, inductive_im_it_noise, inductive_fm_it_noise, variant=variants.a_star))
-# print(algorithm.create_data(df_italian, alpha_pn_it, alpha_im_it, alpha_fm_it, variant=variants.a_star))
-
 # print(algorithm.apply_all_heuristics(log, pn, im, fm, variant=variants.a_star))
-# print(algorithm.apply_log(df_bpi12, pn_bpi, im_bpi, fm_bpi, variant=variants.a_star))
-# print(algorithm.apply_log(df_italian, pn_it, im_it, fm_it, variant=variants.a_star))
-# print(algorithm.apply(df_problems, pn, im, fm, variant=variants.a_star))
