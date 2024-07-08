@@ -448,11 +448,11 @@ def __search(sync_net, ini, fin, cost_function, skip, original_trace, activity_k
                                     ret_tuple_as_trans_desc, max_align_time_trace, int_sol=True)
 
     elif heuristic == "EXTENDED_STATE_EQUATION_LP":
-        return a_star_search.search_extended_marking_eq_correct(sync_net, ini, fin, cost_function, skip, original_trace,
+        return a_star_search.search_extended_marking_eq_faster(sync_net, ini, fin, cost_function, skip, original_trace,
                                                         activity_key, trace_net, ret_tuple_as_trans_desc,
                                                         max_align_time_trace, int_sol=False)
 
     elif heuristic == "EXTENDED_STATE_EQUATION_ILP":
-        return a_star_search.search_extended_marking_eq_correct(sync_net, ini, fin, cost_function, skip, original_trace,
+        return a_star_search.search_extended_marking_eq_faster(sync_net, ini, fin, cost_function, skip, original_trace,
                                                         activity_key, trace_net, ret_tuple_as_trans_desc,
                                                         max_align_time_trace, int_sol=True)

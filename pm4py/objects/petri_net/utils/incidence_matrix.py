@@ -17,7 +17,7 @@
 class IncidenceMatrix(object):
 
     def __init__(self, net):
-        self.__A, self.__place_indices, self.__transition_indices = self.__construct_matrix(net)
+        self.__A, self.__C, self.__place_indices, self.__transition_indices = self.__construct_matrix(net)
 
     def encode_marking(self, marking):
         x = [0 for i in range(len(self.places))]
@@ -27,6 +27,9 @@ class IncidenceMatrix(object):
 
     def __get_a_matrix(self):
         return self.__A
+
+    def __get_c_matrix(self):
+        return self.__C
 
     def __get_transition_indices(self):
         return self.__transition_indices
@@ -45,14 +48,18 @@ class IncidenceMatrix(object):
         for t in transitions:
             t_index[t] = len(t_index)
         a_matrix = [[0 for i in range(len(t_index))] for j in range(len(p_index))]
+        c_matrix = [[0 for i in range(len(t_index))] for j in range(len(p_index))]
         for p in net.places:
             for a in p.in_arcs:
                 a_matrix[p_index[p]][t_index[a.source]] += 1
             for a in p.out_arcs:
                 a_matrix[p_index[p]][t_index[a.target]] -= 1
-        return a_matrix, p_index, t_index
+                c_matrix[p_index[p]][t_index[a.target]] -= 1
+
+        return a_matrix, c_matrix, p_index, t_index
 
     a_matrix = property(__get_a_matrix)
+    consumption_matrix = property(__get_c_matrix)
     places = property(__get_place_indices)
     transitions = property(__get_transition_indices)
 
