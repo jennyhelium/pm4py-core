@@ -2,7 +2,21 @@ import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import plotly.io as pio
+pio.renderers.default = "browser"
+import os
 
+if not os.path.exists("images"):
+    os.mkdir("images")
+
+#plt.use("pgf")
+plt.rcParams.update({
+   # "pgf.texsystem": "pdflatex",
+    'font.family': 'serif',
+    #'text.usetex': True,
+    #'pgf.rcfonts': False,
+    'font.size': 11
+})
 
 def addlabels(x, y, z):
     for i in range(len(x)):
@@ -45,22 +59,32 @@ def distribution_winners(df, timeout):
     return count_no, count_naive, count_state_lp, count_state_ilp, count_ext_lp, count_ext_ilp
 
 
-def create_sunburst_plot(df, timeout):
+def create_sunburst_plot(df, timeout, name="fig"):
     count_no, count_naive, count_state_lp, count_state_ilp, count_ext_lp, count_ext_ilp = distribution_winners(df,
                                                                                                                timeout)
     data_curr = dict(value=[count_no, count_naive, count_state_lp, count_state_ilp, count_ext_lp, count_ext_ilp],
-                     heuristic=["No Heuristic", "Naive", "State Equation", "State Equation", "Extended State Eq.",
-                                "Extended State Eq."],
+                     heuristic=["No Heuristic", "Naive", "State Eq.", "State Eq.", "Ext. State Eq.",
+                                "Ext. State Eq."],
                      parent=[None, None, "State Eq. LP", "State Eq. ILP", "Ext. LP", "Ext. ILP"]
                      )
+    heuristics = ["No Heuristic","Naive", "State Eq.", "Ext. State Eq."]
+    colors = ["#EF553B", "#00CC96","#636EFA","#FFA15A"]
 
     df = pd.DataFrame(data_curr)
 
     print(df)
 
     fig = px.sunburst(df, path=["heuristic", "parent"], values="value",color="heuristic",
-                      color_discrete_map={"State Equation": "#636EFA", "No Heuristic": "red", "Naive": "#00CC96",
-                                          "Extended State Eq.": "#FFA15A"})
+                      color_discrete_map={"State Eq.": "#636EFA", "No Heuristic": "#EF553B", "Naive": "#00CC96",
+                                          "Ext. State Eq.": "#FFA15A"})
+    fig.update_traces(textinfo="label")
+    fig.update_layout(
+        font=dict(size=12
+                  )
+    )
+
+    fig.write_image("images/"+name+".svg")
+
     fig.show()
 
 
@@ -114,19 +138,12 @@ def create_line_plot(df):
     plt.show()
 
 
-# data = pd.read_pickle("results/domestic_filtered_inductive_0_3.pkl")
+if __name__ == "__main__":
+    data = pd.read_pickle("results/road_heuristics_updated_eqs.pkl")
+    data_old = pd.read_pickle("results/road_heuristics_updated_ext.pkl")
 
-data = pd.read_pickle("results/road_heuristic_3.pkl")
-# data = pd.read_pickle("permit_inductive_0,2_curr.pkl")
-
-# data = pd.read_pickle("results/prepaid2024-03-08 00:24:01.pkl")
-#
-# data = pd.read_pickle("results/request2024-03-06 02:17:46.pkl")
-# data = pd.read_pickle("results/domestic_inductive_3.pkl")
-# data = pd.read_pickle("permit_curr.pkl")
-# data = pd.read_pickle("results/road_im_2_noise(0.2)_2024-02-24 08:59:45.pkl")
-
-create_sunburst_plot(data, 180)
-create_bar_plot(data, 180)
-create_line_plot(data)
-create_box_plot(data)
+    create_sunburst_plot(data, 180)
+    create_sunburst_plot(data_old, 180)
+    #create_bar_plot(data, 180)
+    #create_line_plot(data)
+    #create_box_plot(data)

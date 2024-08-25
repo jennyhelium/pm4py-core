@@ -1,13 +1,29 @@
+import collections
+
 import pandas as pd
 import numpy as np
 import time
 import random
 import math
 import matplotlib.pyplot as plt
+
+# plt.use("pgf")
+plt.rcParams.update({
+    # "pgf.texsystem": "pdflatex",
+    'font.family': 'serif',
+    # 'text.usetex': True,
+    # 'pgf.rcfonts': False,
+    'font.size': 11
+})
+
 from pm4py.algo.evaluation.simplicity import algorithm as simplicity_evaluator
 import seaborn as sns
+from timeit import default_timer as timer
 
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+import resource
+import sys
+
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler
 from sklearn import metrics
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import GaussianNB
@@ -16,10 +32,11 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.ensemble import RandomForestClassifier
 
-from imblearn.over_sampling import RandomOverSampler
-from imblearn.under_sampling import RandomUnderSampler
-from collections import Counter
+# from imblearn.over_sampling import RandomOverSampler
+# from imblearn.under_sampling import RandomUnderSampler
+# from collections import Counter
 
 import statistical_numbers
 import features
@@ -42,130 +59,129 @@ import plot_data
 # label column
 def get_merged_data():
     # under_sample road_inductive_0 = pd.read_pickle("results/road_inductive_0_3.pkl")
-    road_inductive_02 = pd.read_pickle("results/road_inductive_02_updated_ext.pkl")
-    road_heuristic = pd.read_pickle("results/road_heuristic_3.pkl")
-    road_filtered = pd.read_pickle("results/road_filtered_inductive_0_3.pkl")
-    road_max_cov = pd.read_pickle("results/road_max_cov_filtered_inductive_0_3.pkl")
-    road_top_10 = pd.read_pickle("results/road_top_10_updated_ext.pkl")
-    road_top_5 = pd.read_pickle("results/road_top_5_updated_ext.pkl")
-    road_top_1 = pd.read_pickle("results/road_top_1_updated_ext.pkl")
+    road_inductive_02 = pd.read_pickle("results/road_inductive_02_updated_eqs.pkl")  # up
+    road_heuristic = pd.read_pickle("results/road_heuristics_updated_eqs.pkl")  # up
+    # road_filtered = pd.read_pickle("results/road_filtered_inductive_0_3.pkl")
+    # road_max_cov = pd.read_pickle("results/road_max_cov_filtered_inductive_0_3.pkl")
+    road_top_10 = pd.read_pickle("results/road_top_10_updated_eqs.pkl")  # up
+    road_top_5 = pd.read_pickle("results/road_top_5_updated_eqs.pkl")  # up
+    road_top_1 = pd.read_pickle("results/road_top_1_updated_eqs.pkl")  # up
 
-    sepsis_alpha = pd.read_pickle("results/sepsis_alpha_0.2_3.pkl")
-    # under_sample
-    sepsis_inductive_02 = pd.read_pickle("results/sepsis_inductive_02_updated_ext.pkl")
-    sepsis_filtered = pd.read_pickle("results/sepsis_filtered_inductive_0_3.pkl")
-    sepsis_max_cov = pd.read_pickle("results/sepsis_max_cov_filtered_inductive_0_3.pkl")
-    sepsis_top_10 = pd.read_pickle("results/sepsis_top_10_inductive_0_curr.pkl")  # 343
-    sepsis_top_5 = pd.read_pickle("results/sepsis_top_5_updated_ext.pkl")
-    sepsis_top_1 = pd.read_pickle("results/sepsis_top_1_updated_ext.pkl")
+    # sepsis_alpha = pd.read_pickle("results/sepsis_alpha_updated_ext.pkl")  # up
+    sepsis_inductive_02 = pd.read_pickle("results/sepsis_inductive_02_updated_eqs.pkl")  # up
+    # sepsis_filtered = pd.read_pickle("results/sepsis_filtered_inductive_0_3.pkl")
+    # sepsis_max_cov = pd.read_pickle("results/sepsis_max_cov_filtered_inductive_0_3.pkl")
+    # sepsis_top_10 = pd.read_pickle("results/sepsis_top_10_inductive_0_curr.pkl")  # 343
+    # sepsis_top_5 = pd.read_pickle("results/sepsis_top_5_updated_ext.pkl")  # up
+    sepsis_top_1 = pd.read_pickle("results/sepsis_top_1_updated_eqs.pkl")  # up
 
-    italian_alpha = pd.read_pickle("results/italian_alpha_0.2_3.pkl")
+    # italian_alpha = pd.read_pickle("results/italian_alpha_0.2_3.pkl")
 
     # bpi12
-    # under_sample bpi12_inductive_02_curr = pd.read_pickle("results/bpi12_inductive_0.2_curr.pkl")
-    bpi12_filtered = pd.read_pickle("results/bpi12_filtered_inductive_0_3.pkl")
-    bpi12_max_cov = pd.read_pickle("results/bpi12_max_cov_inductive_0_curr.pkl")
-    bpi12_top_10 = pd.read_pickle("results/bpi12_top_10_inductive_0_curr.pkl")  # 1099?
+    # under_sample bpi12_inductive_02_curr = pd.read_pickle("results/bpi12_inductive_0.2_curr.pkl") lohnt nicht
+    # bpi12_filtered = pd.read_pickle("results/bpi12_filtered_inductive_0_3.pkl")
+    # bpi12_max_cov = pd.read_pickle("results/bpi12_max_cov_inductive_0_curr.pkl")
+    # bpi12_top_10 = pd.read_pickle("results/bpi12_top_10_inductive_0_curr.pkl")  # 1099?
     # bpi12_ext_top_5 1361
-    bpi12_top_1 = pd.read_pickle("results/bpi12_top_1_updated_ext.pkl")
+    bpi12_top_1 = pd.read_pickle("results/bpi12_top_1_updated_eqs.pkl")  # up
     # bpi13
-    prGm6 = pd.read_pickle("results/prGm6_updated_ext.pkl")
-    prFm6 = pd.read_pickle("prFm6no_curr.pkl")
+    prGm6 = pd.read_pickle("results/prGm6_updated_eqs.pkl")  # up
+    prFm6 = pd.read_pickle("results/prFm6_updated_eqs.pkl")  # up
 
     # BPI20
     # under_sample prepaid_inductive_0 = pd.read_pickle("results/prepaid_inductive_0_3.pkl")
-    # under_sample prepaid_inductive_02 = pd.read_pickle("results/prepaid2024-03-08 00:24:01.pkl")
-    prepaid_filtered = pd.read_pickle("results/prepaid_filtered_inductive_0_3.pkl")
-    prepaid_max_cov = pd.read_pickle("results/prepaid_max_cov_filtered_inductive_0_3.pkl")
-    prepaid_top_10 = pd.read_pickle("results/prepaid_top_10_updated_ext.pkl")
-    prepaid_top_5 = pd.read_pickle("results/prepaid_top_5_updated_ext.pkl")
-    prepaid_top_1 = pd.read_pickle("results/prepaid_top_1_updated_ext.pkl")
+    prepaid_inductive_02 = pd.read_pickle("results/prepaid_inductive_02_updated_eqs.pkl")
+    # prepaid_filtered = pd.read_pickle("results/prepaid_filtered_inductive_0_3.pkl")
+    # prepaid_max_cov = pd.read_pickle("results/prepaid_max_cov_filtered_inductive_0_3.pkl")
+    prepaid_top_10 = pd.read_pickle("results/prepaid_top_10_updated_eqs.pkl")  # up
+    prepaid_top_5 = pd.read_pickle("results/prepaid_top_5_updated_eqs.pkl")  # up
+    prepaid_top_1 = pd.read_pickle("results/prepaid_top_1_updated_eqs.pkl")  # up
 
     # under_sample request_inductive_0 = pd.read_pickle("results/request_inductive_0_3.pkl")
-    # under_sample request_inductive_02 = pd.read_pickle("results/request2024-03-06 02:17:46.pkl")
-    request_filtered = pd.read_pickle("results/request_filtered_inductive_0_3.pkl")
-    request_max_cov = pd.read_pickle("results/request_max_cov_filtered_inductive_0_3.pkl")
-    request_top_10 = pd.read_pickle("results/request_top_10_updated_ext.pkl")
-    request_top_5 = pd.read_pickle("results/request_top_5_updated_ext.pkl")
-    request_top_1 = pd.read_pickle("results/request_top_1_updated_ext.pkl")
+    request_inductive_02 = pd.read_pickle("results/request_inductive_02_updated_eqs.pkl")
+    # request_filtered = pd.read_pickle("results/request_filtered_inductive_0_3.pkl")
+    # request_max_cov = pd.read_pickle("results/request_max_cov_filtered_inductive_0_3.pkl")
+    request_top_10 = pd.read_pickle("results/request_top_10_updated_eqs.pkl")  # up
+    request_top_5 = pd.read_pickle("results/request_top_5_updated_eqs.pkl")  # up
+    request_top_1 = pd.read_pickle("results/request_top_1_updated_eqs.pkl")  # up
 
     # under_sample domestic_inductive_0 = pd.read_pickle("results/domestic_inductive_0_3.pkl")
-    # under_sample domestic_inductive_02 = pd.read_pickle("results/domestic_inductive_3.pkl")
-    domestic_filtered = pd.read_pickle("results/domestic_filtered_inductive_0_3.pkl")
-    domestic_max_cov = pd.read_pickle("results/domestic_max_cov_filtered_inductive_0_3.pkl")
-    domestic_top_10 = pd.read_pickle("results/domestic_top_10_updated_ext.pkl")
-    domestic_top_5 = pd.read_pickle("results/domestic_top_5_updated_ext.pkl")
-    domestic_top_1 = pd.read_pickle("results/domestic_top_1_updated_ext.pkl")
+    domestic_inductive_02 = pd.read_pickle("results/domestic_inductive_02_updated_eqs.pkl")
+    # domestic_filtered = pd.read_pickle("results/domestic_filtered_inductive_0_3.pkl")
+    # domestic_max_cov = pd.read_pickle("results/domestic_max_cov_filtered_inductive_0_3.pkl")
+    domestic_top_10 = pd.read_pickle("results/domestic_top_10_updated_eqs.pkl")  # up
+    domestic_top_5 = pd.read_pickle("results/domestic_top_5_updated_eqs.pkl")  # up
+    domestic_top_1 = pd.read_pickle("results/domestic_top_1_updated_eqs.pkl")  # up
 
     # under_sample international_inductive_0 = pd.read_pickle("results/international_declaration_inductive_0_3.pkl")
-    # under_sample international_inductive_02 = pd.read_pickle("results/international_declaration_inductive_curr.pkl")
-    international_filtered = pd.read_pickle("results/international_declaration_filtered_inductive_0_3.pkl")
-    international_max_cov = pd.read_pickle("results/international_declaration_max_cov_filtered_inductive_0_3.pkl")
-    international_top_10 = pd.read_pickle("results/international_top_10_updated_ext.pkl")
-    international_top_5 = pd.read_pickle("results/international_top_5_updated_ext.pkl")
-    international_top_1 = pd.read_pickle("results/international_top_1_updated_ext.pkl")
+    international_inductive_02 = pd.read_pickle("results/international_inductive_02_updated_eqs.pkl")
+    # international_filtered = pd.read_pickle("results/international_declaration_filtered_inductive_0_3.pkl")
+    # international_max_cov = pd.read_pickle("results/international_declaration_max_cov_filtered_inductive_0_3.pkl")
+    international_top_10 = pd.read_pickle("results/international_top_10_updated_eqs.pkl")  # up
+    international_top_5 = pd.read_pickle("results/international_top_5_updated_eqs.pkl")  # up
+    international_top_1 = pd.read_pickle("results/international_top_1_updated_eqs.pkl")  # up
 
     # permit_inductive_0 = pd.read_pickle("results/permit_inductive_0_curr.pkl") not found?
     # under_sample permit_inductive_02 = pd.read_pickle("permit_inductive_0.2_curr.pkl")
     # permit_filtered_curr = pd.read_pickle("results/permit_inductive_0_curr.pkl") not found?
-    permit_top_5 = pd.read_pickle("results/permit_top_5_inductive_0.pkl")
+    # permit_top_5 = pd.read_pickle("results/permit_top_5_inductive_0.pkl")
 
     data = road_inductive_02
     # under_sample data = data._append(road_inductive_0)
     data = data._append(road_heuristic)
-    data = data._append(road_filtered)
-    data = data._append(road_max_cov)
+    # data = data._append(road_filtered)
+    # data = data._append(road_max_cov)
     data = data._append(road_top_10)
     data = data._append(road_top_5)
     data = data._append(road_top_1)
 
-    data = data._append(sepsis_alpha)
-    # under_sample data = data._append(sepsis_inductive_02)
-    data = data._append(sepsis_filtered)
-    data = data._append(sepsis_max_cov)
-    data = data._append(sepsis_top_10)
-    data = data._append(sepsis_top_5)
+    # data = data._append(sepsis_alpha)
+    data = data._append(sepsis_inductive_02)
+    # data = data._append(sepsis_filtered)
+    # data = data._append(sepsis_max_cov)
+    # data = data._append(sepsis_top_10)
+    # data = data._append(sepsis_top_5)
     data = data._append(sepsis_top_1)
 
-    data = data._append(italian_alpha)
+    # data = data._append(italian_alpha)
 
     # under_sample data = data._append(bpi12_inductive_02_curr)
-    data = data._append(bpi12_filtered)
-    data = data._append(bpi12_max_cov)
-    data = data._append(bpi12_top_10)
+    # data = data._append(bpi12_filtered)
+    # data = data._append(bpi12_max_cov)
+    # data = data._append(bpi12_top_10)
     data = data._append(bpi12_top_1)
 
     data = data._append(prGm6)
     data = data._append(prFm6)
 
     # under_sample data = data._append(prepaid_inductive_0)
-    # under_sample data = data._append(prepaid_inductive_02)
-    data = data._append(prepaid_filtered)
-    data = data._append(prepaid_max_cov)
+    data = data._append(prepaid_inductive_02)
+    # data = data._append(prepaid_filtered)
+    # data = data._append(prepaid_max_cov)
     data = data._append(prepaid_top_10)
     data = data._append(prepaid_top_5)
     data = data._append(prepaid_top_1)
 
     # under_sample data = data._append(request_inductive_0)
-    # under_sample data = data._append(request_inductive_02)
-    data = data._append(request_filtered)
-    data = data._append(request_max_cov)
+    data = data._append(request_inductive_02)
+    # data = data._append(request_filtered)
+    # data = data._append(request_max_cov)
     data = data._append(request_top_10)
     data = data._append(request_top_5)
     data = data._append(request_top_1)
 
     # under_sample data = data._append(domestic_inductive_0)
-    # under_sample data = data._append(domestic_inductive_02)
-    data = data._append(domestic_filtered)
-    data = data._append(domestic_max_cov)
+    data = data._append(domestic_inductive_02)
+    # data = data._append(domestic_filtered)
+    # data = data._append(domestic_max_cov)
     data = data._append(domestic_top_10)
     data = data._append(domestic_top_5)
     data = data._append(domestic_top_1)
 
     # under_sample data = data._append(international_inductive_0)
-    # under_sample data = data._append(international_inductive_02)
-    data = data._append(international_filtered)
-    data = data._append(international_max_cov)
+    data = data._append(international_inductive_02)
+    # data = data._append(international_filtered)
+    # data = data._append(international_max_cov)
     data = data._append(international_top_10)
     data = data._append(international_top_5)
     data = data._append(international_top_1)
@@ -173,7 +189,7 @@ def get_merged_data():
     # data = data._append(permit_inductive_0)
     # under_sample data = data._append(permit_inductive_02)
     # data = data._append(permit_filtered_curr)
-    data = data._append(permit_top_5)
+    # data = data._append(permit_top_5)
 
     data = data.reset_index(drop=True)
 
@@ -183,33 +199,48 @@ def get_merged_data():
 def create_features(trace, pn, im, fm):
     curr_features = []
 
+    start_feat = timer()
     _, visited, queued, deadlock, boundedness = features.random_playout(pn, im, fm, 10, 50)
+    feat_visited_queued_deadlock_boundedness = timer() - start_feat
 
+    start_feat = timer()
     matches_traces, matches_traces_ratio, matches_models, matches_models_ratio = features.matching_labels(pn, trace)
+    feat_matching_labels = timer() - start_feat
+
     curr_features.append(matches_traces)
     curr_features.append(matches_traces_ratio)
     curr_features.append(matches_models)
     curr_features.append(matches_models_ratio)
 
+    start_feat = timer()
     matching_starts = features.matching_starts(pn, trace)
+    feat_matching_start = timer() - start_feat
     curr_features.append(matching_starts)
 
+    start_feat = timer()
     matching_ends = features.matching_ends(pn, trace)
+    feat_matching_end = timer() - start_feat
     curr_features.append(matching_ends)
 
+    start_feat = timer()
     len_trace, trace_transitions_ratio, trace_places_ratio, transitions_trace_ratio, places_trace_ratio = features.trace_ratio(
         pn, trace)
+    feat_trace_len = timer() - start_feat
     curr_features.append(len_trace)
     curr_features.append(trace_transitions_ratio)
     curr_features.append(trace_places_ratio)
     curr_features.append(transitions_trace_ratio)
     curr_features.append(places_trace_ratio)
 
+    start_feat = timer()
     distinct_events = features.distinct_events_trace(trace)
+    feat_distinc_events = timer() - start_feat
     curr_features.append(distinct_events)
 
+    start_feat = timer()
     trace_loop, trace_loop_ratio, max_reps, max_reps_ratio, mean_reps, mean_reps_ratio, sum_reps, sum_reps_ratio = (
         features.trace_loop(trace))
+    feat_trace_loop = timer() - start_feat
     curr_features.append(trace_loop)
     curr_features.append(trace_loop_ratio)
     curr_features.append(max_reps)
@@ -219,38 +250,56 @@ def create_features(trace, pn, im, fm):
     curr_features.append(sum_reps)
     curr_features.append(sum_reps_ratio)
 
+    start_feat = timer()
     one_length_loop = features.one_length_loop(trace)
+    feat_one_lenght_loop = timer() - start_feat
     curr_features.append(one_length_loop)
 
+    start_feat = timer()
     model_duplicates, model_duplicates_ratio = features.model_duplicates(pn)
+    feat_model_duplicates = timer() - start_feat
     curr_features.append(model_duplicates)
     curr_features.append(model_duplicates_ratio)
 
+    start_feat = timer()
     trans_no_in_arc, trans_no_in_arc_ratio = features.transitions_no_in_arc(pn)
+    feat_trans_no_in_arc = timer() - start_feat
     curr_features.append(trans_no_in_arc)
     curr_features.append(trans_no_in_arc_ratio)
 
+    start_feat = timer()
     silent_transitions, silent_transitions_ratio = features.model_silent_transitions(pn)
+    feat_silent_trans = timer() - start_feat
     curr_features.append(silent_transitions)
     curr_features.append(silent_transitions_ratio)
 
+    start_feat = timer()
     parallelism_sum, parallelism_ratio = features.parallelism(pn)
+    feat_parallelism_sum = timer() - start_feat
     curr_features.append(parallelism_sum)
     curr_features.append(parallelism_ratio)
 
+    start_feat = timer()
     parallelism_mult, parallelism_mult_ratio = features.parallelism_model_multiplied(pn)
+    feat_parallelism_mult = timer() - start_feat
     curr_features.append(parallelism_mult)
     curr_features.append(parallelism_mult_ratio)
 
+    start_feat = timer()
     choice_sum, choice_ratio, choice_mult, choice_mult_ratio = features.choice(pn)
+    feat_choice = timer() - start_feat
     curr_features.append(choice_sum)
     curr_features.append(choice_ratio)
     curr_features.append(choice_mult)
     curr_features.append(choice_mult_ratio)
 
+    start_feat = timer()
     curr_features.append(simplicity_evaluator.apply(pn))
+    feat_simplicity = timer() - start_feat
 
+    start_feat = timer()
     free_choice = features.free_choice(pn)
+    feat_free_choice = timer() - start_feat
     curr_features.append(free_choice)
 
     curr_features.append(visited)
@@ -258,7 +307,20 @@ def create_features(trace, pn, im, fm):
     curr_features.append(deadlock)
     curr_features.append(boundedness)
 
-    return curr_features
+    times_features = {"Visited, Queued, Deadlocks, Boundedness": feat_visited_queued_deadlock_boundedness,
+                      "Matching Labels": feat_matching_labels,
+                      "Matching Start": feat_matching_start, "Matching End": feat_matching_end,
+                      "Trace Length": feat_trace_len,
+                      "Distinct Events": feat_distinc_events, "Trace Loop": feat_trace_loop,
+                      "Trace One-Length Loop": feat_one_lenght_loop,
+                      "Model Duplicates": feat_model_duplicates, "Transitions no in-arc": feat_trans_no_in_arc,
+                      "Silent Transitions": feat_silent_trans,
+                      "Parallelism Sum": feat_parallelism_sum, "Parallelism Mult": feat_parallelism_mult,
+                      "Choice": feat_choice,
+                      "Simplicity": feat_simplicity, "Free choice": feat_free_choice
+                      }
+
+    return curr_features, times_features
 
 
 # data = merge_data.get_merged_data()
@@ -269,7 +331,7 @@ def label_data(data):
 
     # multi class classification
     # label column
-    plot_data.create_sunburst_plot(data, 180)
+    plot_data.create_sunburst_plot(data, 180, "total")
 
     min_val_idx = data[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
                         "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
@@ -327,8 +389,8 @@ def multi_label_data(data):
     -------
 
     """
-    min_val_idx = data[["No Heuristic Time", "Naive Time", "State Eq. LP Time", "State Eq. ILP Time",
-                        "Ext. Eq. LP Time", "Ext. Eq. ILP Time"]].idxmin(axis="columns")
+    min_val_idx = data[["No Heuristic Time", "Naive Time", "State Eq. LP Time",
+                        "Ext. Eq. LP Time"]].idxmin(axis="columns")
 
     encode_times = data.copy()
     labels = []
@@ -337,7 +399,7 @@ def multi_label_data(data):
     timeout = 180
 
     for i in min_val_idx:
-        row = encode_times.iloc[row_num,:]
+        row = encode_times.iloc[row_num, :]
         min_time = row[i]
 
         curr_labels = []
@@ -346,8 +408,11 @@ def multi_label_data(data):
             labels.append("Timeout")
         else:
             times = {"No Heuristic": row["No Heuristic Time"], "Naive": row["Naive Time"],
-                     "State Eq.": min(row["State Eq. LP Time"], row["State Eq. ILP Time"]),
-                     "Ext. Eq.": min(row["Ext. Eq. LP Time"], row["Ext. Eq. ILP Time"])}
+                     "State Eq. LP": row["State Eq. LP Time"],
+                     # min(row["State Eq. LP Time"], row["State Eq. ILP Time"]),
+                     "Ext. Eq. LP": row["Ext. Eq. LP Time"]
+                     # min(row["Ext. Eq. LP Time"], row["Ext. Eq. ILP Time"])
+                     }
 
             curr_labels = [key for key, value in times.items() if value <= (1.1 * min_time)]
 
@@ -361,9 +426,10 @@ def multi_label_data(data):
 
     return encode_times_drop_timeout.reset_index(drop=True)
 
+
 def sample_data(data, drop_frac=.5):
     data = data.drop(data.query('Label == "State Eq. LP"').sample(frac=drop_frac).index)
-    plot_data.create_sunburst_plot(data, 180)
+    plot_data.create_sunburst_plot(data, 180, "sampled_2")
 
     return data.reset_index(drop=True)
 
@@ -437,12 +503,130 @@ def rank_heuristics(data, use_ilp=True, reverse=False, column_no="No Heuristic T
     return encode_ranks
 
 
+def get_model_features(pn, im, fm):
+    start_time = time.time()
+    curr_features = []
+    _, visited, queued, deadlock, boundedness = features.random_playout(pn, im, fm, 10, 50)
+
+    model_duplicates, model_duplicates_ratio = features.model_duplicates(pn)
+    curr_features.append(model_duplicates)
+    curr_features.append(model_duplicates_ratio)
+
+    trans_no_in_arc, trans_no_in_arc_ratio = features.transitions_no_in_arc(pn)
+    curr_features.append(trans_no_in_arc)
+    curr_features.append(trans_no_in_arc_ratio)
+
+    silent_transitions, silent_transitions_ratio = features.model_silent_transitions(pn)
+    curr_features.append(silent_transitions)
+    curr_features.append(silent_transitions_ratio)
+
+    parallelism_sum, parallelism_ratio = features.parallelism(pn)
+    curr_features.append(parallelism_sum)
+    curr_features.append(parallelism_ratio)
+
+    parallelism_mult, parallelism_mult_ratio = features.parallelism_model_multiplied(pn)
+    curr_features.append(parallelism_mult)
+    curr_features.append(parallelism_mult_ratio)
+
+    choice_sum, choice_ratio, choice_mult, choice_mult_ratio = features.choice(pn)
+    curr_features.append(choice_sum)
+    curr_features.append(choice_ratio)
+    curr_features.append(choice_mult)
+    curr_features.append(choice_mult_ratio)
+
+    curr_features.append(simplicity_evaluator.apply(pn))
+
+    free_choice = features.free_choice(pn)
+    curr_features.append(free_choice)
+
+    curr_features.append(visited)
+    curr_features.append(queued)
+    curr_features.append(deadlock)
+    curr_features.append(boundedness)
+
+    time_model_features = time.time() - start_time
+
+    return curr_features, time_model_features
+
+
+def get_trace_features(trace, pn):
+    curr_features = []
+
+    start_feat = timer()
+    len_trace, trace_transitions_ratio, trace_places_ratio, transitions_trace_ratio, places_trace_ratio = features.trace_ratio(
+        pn, trace)
+    feat_trace_len = timer() - start_feat
+    curr_features.append(len_trace)
+    curr_features.append(trace_transitions_ratio)
+    curr_features.append(trace_places_ratio)
+    curr_features.append(transitions_trace_ratio)
+    curr_features.append(places_trace_ratio)
+
+    start_feat = timer()
+    distinct_events = features.distinct_events_trace(trace)
+    feat_distinc_events = timer() - start_feat
+    curr_features.append(distinct_events)
+
+    start_feat = timer()
+    trace_loop, trace_loop_ratio, max_reps, max_reps_ratio, mean_reps, mean_reps_ratio, sum_reps, sum_reps_ratio = (
+        features.trace_loop(trace))
+    feat_trace_loop = timer() - start_feat
+    curr_features.append(trace_loop)
+    curr_features.append(trace_loop_ratio)
+    curr_features.append(max_reps)
+    curr_features.append(max_reps_ratio)
+    curr_features.append(mean_reps)
+    curr_features.append(mean_reps_ratio)
+    curr_features.append(sum_reps)
+    curr_features.append(sum_reps_ratio)
+
+    start_feat = timer()
+    one_length_loop = features.one_length_loop(trace)
+    feat_one_lenght_loop = timer() - start_feat
+    curr_features.append(one_length_loop)
+
+    return curr_features
+
+
+def get_model_trace_features(pn, trace):
+    curr_features = []
+
+    start_feat = timer()
+    matches_traces, matches_traces_ratio, matches_models, matches_models_ratio = features.matching_labels(pn, trace)
+    feat_matching_labels = timer() - start_feat
+
+    curr_features.append(matches_traces)
+    curr_features.append(matches_traces_ratio)
+    curr_features.append(matches_models)
+    curr_features.append(matches_models_ratio)
+
+    start_feat = timer()
+    matching_starts = features.matching_starts(pn, trace)
+    feat_matching_start = timer() - start_feat
+    curr_features.append(matching_starts)
+
+    start_feat = timer()
+    matching_ends = features.matching_ends(pn, trace)
+    feat_matching_end = timer() - start_feat
+    curr_features.append(matching_ends)
+
+    return curr_features
+
+
 def get_features_data(data):
+    data = data.reset_index(drop=True)
     # features_data = []
     feature = []
 
-    start_features = time.time()
+    # start_features = time.time()
+    time_features = 0
+    time_model_features = 0
 
+    dict_times_features_ls = []
+
+    dict_pn_id = {}
+
+    count = 0
     for i in data.index:
         row = data.iloc[i, :]
         trace = row["Trace"]
@@ -450,16 +634,53 @@ def get_features_data(data):
         im = row["Initial Marking"]
         fm = row["Final Marking"]
 
-        row_features = create_features(trace, pn, im, fm)
+        pn_id = str(id(pn))
+
+        if pn_id not in dict_pn_id:
+            model_features, curr_time_model_features = get_model_features(pn, im, fm)
+            dict_pn_id[pn_id] = model_features
+            time_model_features += curr_time_model_features
+
+        else:
+            model_features = dict_pn_id[pn_id]
+
+        # compute other features
+        time_start = time.time()
+        trace_features = get_trace_features(trace, pn)
+        model_trace_features = get_model_trace_features(pn, trace)
+        time_features += time.time() - time_start
+
+        row_features = model_trace_features + trace_features + model_features
+
+        #start_time_features = time.time()
+        #row_features, dict_times_features = create_features(trace, pn, im, fm)
+        #time_features += time.time() - start_time_features
 
         len_features = len(row_features)
 
         feature.append(row_features)
 
-    end_features = time.time()
-    time_features = end_features - start_features
+        #dict_times_features_ls.append(dict_times_features)
+        count += 1
 
-    print("Time to compute features: ", time_features)
+    #counter = collections.Counter()
+    #for d in dict_times_features_ls:
+     #   counter.update(d)
+
+    #counter = dict(counter)
+    #counter.update((x, y / count) for x, y in counter.items())
+
+    #sorted_keys_times_features = {k: v for k, v in sorted(counter.items(), key=lambda x: x[1])}
+    #print("Time to compute features in ascending order:")
+    #print(sorted_keys_times_features)
+
+    # end_features = time.time()
+    # time_features = end_features - start_features
+    print("Unique petri nets: ", len(dict_pn_id))
+    print("Time to compute model features: ", time_model_features)
+
+    print("Time to compute other features: ", time_features)
+    print("Time to compute all features: ", time_features + time_model_features)
 
     # features_data.append(feature)
 
@@ -483,15 +704,16 @@ def get_features_data(data):
     features_df = pd.DataFrame(feature, columns=columns, dtype=float)
 
     # scale features
-    # scaler = MinMaxScaler()
-    scaler = StandardScaler()
+    #scaler = MinMaxScaler()
+    #scaler = StandardScaler()
+    scaler = MaxAbsScaler()
     scaled_features = scaler.fit_transform(features_df)
     scaled_df = pd.DataFrame(scaled_features, columns=features_df.columns)
 
     result = data.join(scaled_df)
 
     print(result)
-    return result, len_features
+    return result, len_features, time_features + time_model_features
 
 
 def get_train_test_set(data, ratio=0.8, multi_label=False):
@@ -602,12 +824,14 @@ def recommendation_function(df_train: object, y_train: object, df_test: object, 
                             weight: object = "majority") -> object:
     # max_difference ~ n * 0.025
     # join df_test with df_proba
-    df_test = df_test.reset_index()
-    test_proba = df_test.join(df_proba, lsuffix="_alignment")
+    df_test_copy = df_test.copy()
+    df_test_copy = df_test_copy.reset_index()
+    test_proba = df_test_copy.join(df_proba, lsuffix="_alignment")
     df_train = df_train.reset_index()
     y_train = y_train.reset_index()
 
     recommendation_ls = []
+    majority_ambiguous = 0
     # if probability estimates < threshold
     count_do_k_neighbour = 0
     for i in test_proba.index:
@@ -635,7 +859,8 @@ def recommendation_function(df_train: object, y_train: object, df_test: object, 
                     "Model Duplicates Ratio", "Trans No In-arc", "Trans No In-arc ratio", "Silent Transitions",
                     "Silent Transitions ratio", "Parallelism Sum", "Parallelism Sum Ratio", "Parallelism Mult",
                     "Parallelism Mult Ratio", "Choice Sum", "Choice Sum Ratio", "Choice Mult", "Choice Mult Ratio",
-                    "Simplicity", "Free-Choice", "Visited States", "Queued States", "Deadlocks", "Boundedness"]
+                    "Simplicity", "Free-Choice", "Visited States", "Queued States", "Deadlocks", "Boundedness"
+                    ]
 
         features_test = []
         for j in range(n):
@@ -727,7 +952,12 @@ def recommendation_function(df_train: object, y_train: object, df_test: object, 
 
         # majority vote on label?
         # add certain value to probability estimate?
+        max_votes_val = max(count_labels.values())
         key_max_votes = max(count_labels, key=lambda x: count_labels[x])
+
+        frequency_max_votes = sum(x == max_votes_val for x in count_labels.values())
+        if frequency_max_votes > 1:
+            majority_ambiguous += 1
 
         if weight == "majority":
             prediction = key_max_votes
@@ -739,7 +969,7 @@ def recommendation_function(df_train: object, y_train: object, df_test: object, 
     print(features_train_dict)
     print(count_labels)
 
-    return recommendation_ls, count_do_k_neighbour
+    return recommendation_ls, count_do_k_neighbour, majority_ambiguous
 
 
 def recommendation_bounding_box(df_train, y_train, df_test, df_proba, max_prob_thres, k, n, max_difference,
@@ -750,7 +980,7 @@ def recommendation_bounding_box(df_train, y_train, df_test, df_proba, max_prob_t
     y_train = y_train.reset_index()
 
     recommendation_ls = []
-
+    majority_ambiguous = 0
     neighbours = []
     count_do_bounding_neighbour = 0
     for i in test_proba.index:
@@ -831,6 +1061,11 @@ def recommendation_bounding_box(df_train, y_train, df_test, df_proba, max_prob_t
         # majority vote on label?
         # add certain value to probability estimate?
         key_max_votes = max(count_labels, key=lambda x: count_labels[x])
+        max_votes_val = max(count_labels.values())
+
+        frequency_max_votes = sum(x == max_votes_val for x in count_labels.values())
+        if frequency_max_votes > 1:
+            majority_ambiguous += 1
 
         if weight == "majority":
             prediction = key_max_votes
@@ -838,43 +1073,52 @@ def recommendation_bounding_box(df_train, y_train, df_test, df_proba, max_prob_t
             prediction = max(prob_dens, key=lambda x: prob_dens[x])
         recommendation_ls.append(prediction)
         neighbours.append(len(bounding_box))
-        print("Neighbours in bounding box", len(bounding_box))
+        # print("Neighbours in bounding box", len(bounding_box))
 
     print(count_labels)
     print(neighbours)
 
-    return recommendation_ls, count_do_bounding_neighbour
+    return recommendation_ls, count_do_bounding_neighbour, majority_ambiguous
 
 
 def evaluate_recommendation_function(X_train, y_train, X_test, y_test, proba_df, num_iterations, k_neighbours,
-                                     n_features, prob_threshold, fixed_k):
+                                     n_features, prob_threshold, fixed_k, model_name):
     start_recommend = time.time()
 
     if fixed_k:
-        y_pred_recommendation_function, count_do_k_neighbour = recommendation_function(X_train, y_train, X_test,
-                                                                                       proba_df,
-                                                                                       num_iterations,
-                                                                                       k_neighbours, n_features,
-                                                                                       max_difference=0.025 * n_features,
-                                                                                       prob_threshold=0.9)
+        y_pred_recommendation_function, count_do_k_neighbour, majority_ambiguous = recommendation_function(X_train,
+                                                                                                           y_train,
+                                                                                                           X_test,
+                                                                                                           proba_df,
+                                                                                                           num_iterations,
+                                                                                                           k_neighbours,
+                                                                                                           n_features,
+                                                                                                           max_difference=0.025 * n_features,
+                                                                                                           prob_threshold=prob_threshold)
+        print("Times k-nearest neighbour executed", count_do_k_neighbour)
 
     else:
-        y_pred_recommendation_function, count_do_k_neighbour = recommendation_bounding_box(X_train, y_train, X_test,
-                                                                                           proba_df, prob_threshold,
-                                                                                           k_neighbours,
-                                                                                           n_features,
-                                                                                           max_difference=0.025 *
-                                                                                                          n_features)
+        y_pred_recommendation_function, count_do_k_neighbour, majority_ambiguous = recommendation_bounding_box(X_train,
+                                                                                                               y_train,
+                                                                                                               X_test,
+                                                                                                               proba_df,
+                                                                                                               prob_threshold,
+                                                                                                               k_neighbours,
+                                                                                                               n_features,
+                                                                                                               max_difference=0.02 *
+                                                                                                                              n_features)
+        print("Times bounding box executed", count_do_k_neighbour)
+
     end_recommend = time.time()
-    print("Times k-nearest neighbour executed", count_do_k_neighbour)
+    print("Times majority ambiguous", majority_ambiguous)
     time_recommend = end_recommend - start_recommend
     print("Recommendation function parameters: " + str(num_iterations) + " iterations " +
           str(k_neighbours) + " neighbours" + str(n_features) + " features")
-    print("MLP + recommendation function: Number of mislabeled points out of a total %d points : %d" % (
-        X_test.shape[0], (y_test != y_pred_recommendation_function).sum()))
+    print(model_name, "+ recommendation function: Number of mislabeled points out of a total %d points : %d" % (
+        X_test.shape[0], (np.asarray(y_test_ls) != np.asarray(y_pred_recommendation_function)).sum()))
 
     score = metrics.accuracy_score(y_test, y_pred_recommendation_function)
-    print("MLP + recommendation function accuracy for :   %0.3f" % score)
+    print(model_name, "+ recommendation function accuracy for :   %0.3f" % score)
 
     class_report = metrics.classification_report(y_test, y_pred_recommendation_function, target_names=mlp_labels)
 
@@ -883,14 +1127,14 @@ def evaluate_recommendation_function(X_train, y_train, X_test, y_test, proba_df,
     df_cm = pd.DataFrame(cm, columns=mlp_labels, index=mlp_labels)
     df_cm.index.name = 'Actual'
     df_cm.columns.name = 'Predicted'
-    plt.figure(figsize=(10, 7))
-    sns.set(font_scale=1.4)  # for label size
-    sns.heatmap(df_cm, cmap="Blues", annot=True, annot_kws={"size": 16}, fmt='g')
-    plt.title(
-        "Confusions Matrix of Neural Network + Recommendation Function for " + str(num_iterations) + " iterations " +
-        str(k_neighbours) + " neighbours" + str(n_features) + " features")
+    # plt.figure(figsize=(20, 7))
+    # sns.set(font_scale=1.6)  # for label size
+    # sns.heatmap(df_cm, cmap="Blues", annot=True, annot_kws={"size": 16}, fmt='g')
+    # plt.title(
+    #   "Confusions Matrix of Neural Network + Recommendation Function for " + str(num_iterations) + " iterations " +
+    #  str(k_neighbours) + " neighbours" + str(n_features) + " features")
     # sns.heatmap(cm, annot=mlp_labels, cmap='Blues')
-    plt.show()
+    # plt.show()
     return y_pred_recommendation_function, time_recommend
 
 
@@ -1005,7 +1249,7 @@ def get_times_of_each_label(all_data, true_label, pred_label, label):
 
         row_all_data = all_data.iloc[index_original, :]
         if prediction == "State Eq." or prediction == "Ext. Eq.":
-             time_pred += row_all_data[prediction + ' LP Time']
+            time_pred += row_all_data[prediction + ' LP Time']
         else:
             time_pred += row_all_data[prediction + ' Time']
 
@@ -1042,18 +1286,48 @@ def evaluate_each_label(all_data, true_label, pred_label, use_ilp=False):
         print("Time for computing alignments with state eq. ", t_state)
         print("Time for computing alignments with ext. eq. ", t_ext)
 
-def compute_prediction_highest_prob_mulit(proba_rf, classes):
-    predictions = []
 
-    for i in range(len(proba_rf[0])):
-        prob_classes = []
-        for j in range(len(classes)):
-            prob_classes.append(proba_rf[j][i][1])
+def compute_prediction_highest_prob_mulit(proba_rf, classes, multi_label_clf):
+    predictions = []
+    if multi_label_clf == "MLP multi-label":
+        len_proba = len(proba_rf)
+    else:
+        len_proba = len(proba_rf[0])
+
+    for i in range(len_proba):
+        if multi_label_clf == "MLP multi-label":
+            prob_classes = proba_rf[i].tolist()
+        else:
+            prob_classes = []
+            for j in range(len(classes)):
+                prob_classes.append(proba_rf[j][i][1])
 
         index_max_prob = prob_classes.index(max(prob_classes))
         predictions.append(classes[index_max_prob])
 
     return predictions
+
+
+def compute_probabilities_multi_label(proba_rf, classes, multi_label_clf):
+    probs = []
+
+    if multi_label_clf == "MLP multi-label":
+        len_proba = len(proba_rf)
+    else:
+        len_proba = len(proba_rf[0])
+
+    for i in range(len_proba):
+        if multi_label_clf == "MLP multi-label":
+            prob_classifiers = proba_rf[i].tolist()
+        else:
+            prob_classifiers = []
+            for j in range(len(classes)):
+                prob_classifiers.append(proba_rf[j][i][1])
+        probs.append(prob_classifiers)
+
+    probs_df = pd.DataFrame(probs, columns=classes.tolist())
+    return probs_df
+
 
 def recommend():
     pass
@@ -1061,39 +1335,46 @@ def recommend():
 
 if __name__ == "__main__":
 
-    """
-    road_inductive_02 = pd.read_pickle("results/road_inductive_3.pkl")
-    road_heuristic = pd.read_pickle("results/road_heuristic_3.pkl")
-    road_filtered = pd.read_pickle("results/road_filtered_inductive_0_3.pkl")
+    data = get_merged_data()
+    plot_data.create_sunburst_plot(data, 180, "overall")
+    data_labeled = label_data(data)
+    data_sampled = sample_data(data_labeled, drop_frac=0.95)
+    data_ranked = rank_heuristics(data_sampled, use_ilp=False)
+    data_features, len_features, time_compute_feature = get_features_data(data_ranked)
 
-    test_road = road_inductive_02.iloc[0:2, :]
-    test_road = test_road._append(road_heuristic.iloc[0:2, :])
-    test_road = test_road._append(road_filtered.iloc[0:2, :])
-    test_road = test_road.reset_index()
-    data_features, len_features = get_features_data(test_road)
-    """
-    #data = get_merged_data()
-    #data_labeled = label_data(data)
-    #data_sampled = sample_data(data_labeled, drop_frac=0.9)
-    #data_ranked = rank_heuristics(data_sampled, use_ilp=False)
-    #data_features, len_features = get_features_data(data_ranked)
+    # print(resource.getrlimit(resource.RLIMIT_STACK))
+    # print(sys.getrecursionlimit())
 
-    #data_features.to_pickle("data_features0619_drop_0,9.pkl")
+    # max_rec = 0x100000
 
-    #data_features = pd.read_pickle("undersampled_data_features.pkl")
-    data_features = pd.read_pickle("data_features0619.pkl")
+    # May segfault without this line. 0x100 is a guess at the size of each stack frame.
+    # resource.setrlimit(resource.RLIMIT_STACK, [0x100 * max_rec, resource.RLIM_INFINITY])
+    # sys.setrecursionlimit(max_rec)
+
+    data_features.to_pickle("data_features_updated_eqs.pkl")
+    # data_features.to_pickle("undersampeled_0,95_data_features_updated_eqs_0719.pkl")
+    #data_features = pd.read_pickle("undersampeled_0,95_data_features_updated_eqs_0719.pkl")
+
+    # data_features = pd.read_pickle("data_features0619.pkl")
     len_features = 41
 
     data_multi_labeled = multi_label_data(data_features)
 
-    X_train, y_train, X_test, y_test = get_train_test_set(data_features)
-    #drop_i = X_train[X_train['Ext. LP Rank'] == 1].index
-    #X_train = X_train.drop(drop_i)
-    #y_train = y_train.drop(drop_i)
+    X_train_raw, y_train_raw, X_test_raw, y_test_raw = get_train_test_set(data_sampled)
+    data_features_X, len_features_X, time_compute_feature_X = get_features_data(X_test_raw)
 
-    #drop_i = X_test[X_test['Ext. LP Rank'] == 1].index
-    #X_test = X_test.drop(drop_i)
-    #y_test = y_test.drop(drop_i)
+    X_train, y_train, X_test, y_test = get_train_test_set(data_features)
+    # drop_i = X_train[X_train['Ext. LP Rank'] == 1].index
+    # X_train = X_train.drop(drop_i)
+    # y_train = y_train.drop(drop_i)
+
+    # drop_i = X_test[X_test['Ext. LP Rank'] == 1].index
+    # X_test = X_test.drop(drop_i)
+    # y_test = y_test.drop(drop_i)
+    timeout = 180
+    #plot_data.create_sunburst_plot(X_train, timeout)
+    #plot_data.create_sunburst_plot(X_test, timeout)
+
     # road_x_train = np.asarray(road_x_train.iloc[:, -len_features:], dtype=object)
     X_test_features = np.asarray(X_test.iloc[:, -len_features:], dtype=object)
     X_train_features = np.asarray(X_train.iloc[:, -len_features:], dtype=object)
@@ -1109,18 +1390,28 @@ if __name__ == "__main__":
 
     multi_classes = mlb.classes_
 
-    from sklearn.ensemble import RandomForestClassifier
-    clf = RandomForestClassifier(max_depth=2, random_state=0)
+    #multi_label_classifier = "RF multi-label"
+    multi_label_classifier = "MLP multi-label"
+    if multi_label_classifier == "MLP multi-label":
+        clf = MLPClassifier(solver='adam', hidden_layer_sizes=(len_features, len_features, 10, 4),
+                            learning_rate_init=0.001,
+                            random_state=1,
+                            max_iter=1000)
+    else:
+        clf = RandomForestClassifier(max_depth=6, random_state=0)
+
     clf.fit(X_train_features_multi, y_train_multi_label)
 
+    start_multi_label_predict = time.time()
     proba_rf = clf.predict_proba(X_test_features_multi)
-    #y_pred_rf = clf.predict(X_test_features_multi)
-    #y_pred_rf_inversed = mlb.inverse_transform(y_pred_rf)
+    time_multi_label_predict = time.time() - start_multi_label_predict
+    print("Time to predict with", multi_label_classifier, time_multi_label_predict)
+    # y_pred_rf = clf.predict(X_test_features_multi)
+    # y_pred_rf_inversed = mlb.inverse_transform(y_pred_rf)
 
-    #y_pred_single_label = [y[0] for y in y_pred_rf_inversed]
-    #y_pred_single_label_last = [y[-1] if len(y) > 1 else y[0] for y in y_pred_rf_inversed]
-    y_pred_single_label = compute_prediction_highest_prob_mulit(proba_rf, multi_classes)
-
+    # y_pred_single_label = [y[0] for y in y_pred_rf_inversed]
+    # y_pred_single_label_last = [y[-1] if len(y) > 1 else y[0] for y in y_pred_rf_inversed]
+    y_pred_single_label = compute_prediction_highest_prob_mulit(proba_rf, multi_classes, multi_label_classifier)
 
     # oversample = RandomOverSampler(sampling_strategy='not majority')
     # X_over, y_over = oversample.fit_resample(X_train_features, y_train)
@@ -1131,22 +1422,26 @@ if __name__ == "__main__":
     # X_train, X_test, y_train, y_test = train_test_split(X_over, y_over, test_size=0.2, random_state=0)
 
     # NN
+    #multi_classes_classifier = "RF multi-class"
+    multi_classes_classifier = "MLP multi-class"
+    if multi_classes_classifier == "MLP multi-class":
+        # start_train_mlp = time.time()
+        mlp = MLPClassifier(solver='adam', hidden_layer_sizes=(len_features, len_features, 10, 4),
+                            learning_rate_init=0.001,
+                            random_state=1,
+                            max_iter=1000)
+        mlp.out_activation_ = 'softmax'
+    else:
+        mlp = RandomForestClassifier(max_depth=6, random_state=0)
 
-    start_train_mlp = time.time()
-
-    mlp = MLPClassifier(solver='adam', hidden_layer_sizes=(len_features, len_features, 10, 4), learning_rate_init=0.001,
-                        random_state=1,
-                        max_iter=1000)
-    mlp.out_activation_ = 'softmax'
-    # mlp.fit(road_x_train, road_y_train)
     mlp.fit(X_train_features, y_train)
     # mlp.fit(X_under, y_under)
 
-    end_train_mlp = time.time()
-    time_train_mlp = end_train_mlp - start_train_mlp
+    # end_train_mlp = time.time()
+    # time_train_mlp = end_train_mlp - start_train_mlp
 
     # print("Time to compute features: ", time_features)
-    print("Time to train mlp: ", time_train_mlp)
+    # print("Time to train mlp: ", time_train_mlp)
 
     start_predict_mlp = time.time()
     # y_pred_mlp = mlp.predict(X_test_features)
@@ -1154,17 +1449,17 @@ if __name__ == "__main__":
 
     end_predict_mlp = time.time()
     time_predict_mlp = end_predict_mlp - start_predict_mlp
-    print("Time to predict with mlp: ", time_predict_mlp)
+    print("Time to predict with:", multi_classes_classifier, time_predict_mlp)
 
     mlp_labels = mlp.classes_
 
     y_test_np = y_test.to_numpy()
     y_test_ls = [element for innerList in y_test_np for element in innerList]
-    print("MLP: Number of mislabeled points out of a total %d points : %d" % (
+    print(multi_classes_classifier, ": Number of mislabeled points out of a total %d points : %d" % (
         X_test.shape[0], (y_test_ls != y_pred_mlp).sum()))
 
     score = metrics.accuracy_score(y_test, y_pred_mlp)
-    print("MLP accuracy:   %0.3f" % score)
+    print(multi_classes_classifier, "accuracy:   %0.3f" % score)
 
     class_report = metrics.classification_report(y_test, y_pred_mlp, target_names=mlp_labels)
 
@@ -1174,7 +1469,7 @@ if __name__ == "__main__":
     df_cm.index.name = 'Actual'
     df_cm.columns.name = 'Predicted'
     plt.figure(figsize=(10, 7))
-    sns.set(font_scale=1.4)  # for label size
+    sns.set(font_scale=1.6)  # for label size
     sns.heatmap(df_cm, cmap="Blues", annot=True, annot_kws={"size": 16}, fmt='g')
     plt.title("Confusions Matrix of Neural Network")
     # sns.heatmap(cm, annot=mlp_labels, cmap='Blues')
@@ -1186,32 +1481,43 @@ if __name__ == "__main__":
     df_y_test = y_test.copy()
     df_y_test = df_y_test.reset_index()
     df_y_pred_rf = pd.DataFrame(y_pred_single_label, columns=["Prediction"])
-    #df_y_pred_rf_last = pd.DataFrame(y_pred_single_label_last, columns=["Prediction"])
+    # df_y_pred_rf_last = pd.DataFrame(y_pred_single_label_last, columns=["Prediction"])
     df_y_pred_mlp = pd.DataFrame(y_pred_mlp, columns=["Prediction"])
 
-    print("evaluate each label for rf")
+    print("evaluate each label for", multi_label_classifier)
     evaluate_each_label(data_features, df_y_test, df_y_pred_rf)
-    print("evaluate each label for mlp")
+    print("evaluate each label for", multi_classes_classifier)
     evaluate_each_label(data_features, df_y_test, df_y_pred_mlp)
 
-    timeout = 180
-    rf_idx, rf_time, rf_timeouts, rf_lps, rf_queued = statistical_numbers.return_model_metrics(X_test, y_pred_single_label,
-                                                                                      timeout)
-    #rf_idx_last, rf_time_last, rf_timeouts_last, rf_lps_last, rf_queued_last = statistical_numbers.return_model_metrics(
-     #   X_test, y_pred_single_label_last,
-      #  timeout)
+    rf_idx, rf_time, rf_timeouts, rf_lps, rf_queued = statistical_numbers.return_model_metrics(X_test,
+                                                                                               y_pred_single_label,
+                                                                                               timeout)
+    # rf_idx_last, rf_time_last, rf_timeouts_last, rf_lps_last, rf_queued_last = statistical_numbers.return_model_metrics(
+    #   X_test, y_pred_single_label_last,
+    #  timeout)
 
     y_pred_mlp_ls = y_pred_mlp.tolist()
-    mlp_idx, mlp_time, mlp_timeouts, mlp_lps, mlp_queued = statistical_numbers.return_model_metrics(X_test, y_pred_mlp_ls,
-                                                                              timeout)
+    mlp_idx, mlp_time, mlp_timeouts, mlp_lps, mlp_queued = statistical_numbers.return_model_metrics(X_test,
+                                                                                                    y_pred_mlp_ls,
+                                                                                                    timeout)
     plt.rcParams.update(plt.rcParamsDefault)
-    statistical_numbers.evaluate_time(X_test, [rf_time, mlp_time], ["RF", "MLP"])
+    plt.rcParams["figure.figsize"] = (15, 10)
+    statistical_numbers.evaluate_time_only_heuristics(X_test, True)
 
-    statistical_numbers.evaluate_lps(X_test, [rf_lps, mlp_lps],["RF", "MLP"])
+    time_compute_feature_X = 0
+    statistical_numbers.evaluate_time(X_test, [rf_time, mlp_time], [multi_label_classifier, multi_classes_classifier],
+                                     time_compute_feature_X, use_features=True, use_ilp=False, plot=True)
 
-    statistical_numbers.evaluate_queued(X_test, [rf_queued, mlp_queued], ["RF", "MLP"])
+    statistical_numbers.evaluate_lps(X_test, [rf_lps, mlp_lps], [multi_label_classifier, multi_classes_classifier],
+                                     use_ilp=False, plot=True)
 
-    statistical_numbers.evaluate_timeouts(X_test, [rf_timeouts, mlp_timeouts], ["RF", "MLP"], timeout)
+    statistical_numbers.evaluate_queued(X_test, [rf_queued, mlp_queued],
+                                       [multi_label_classifier, multi_classes_classifier], use_ilp=False, plot=True)
+
+    statistical_numbers.evaluate_timeouts(X_test, [rf_timeouts, mlp_timeouts], [multi_label_classifier, multi_classes_classifier], timeout)
+    print("Time with", multi_classes_classifier, mlp_time)
+    print("Time with", multi_label_classifier, rf_time)
+
     # k = 3
     # for i in range(k):
     #   rank_in_top_k = ranking_accuracy_top_k(X_test, proba_ranks, i)
@@ -1232,11 +1538,9 @@ if __name__ == "__main__":
             count_state += 1
     print("LP version predicted, ILP version is truth and vice versa: ", count_state)
     score_relax = metrics.accuracy_score(y_test, y_pred_relax_lp)
-    print("MLP accuracy when no difference between LP and ILP:   %0.3f" % score_relax)
+    print(multi_classes_classifier, "accuracy when no difference between LP and ILP:   %0.3f" % score_relax)
 
     time_relaxed_model = statistical_numbers.time_using_model(X_test, y_pred_relax_lp)
-
-
 
     """
     # random model
@@ -1283,109 +1587,150 @@ if __name__ == "__main__":
                                            "Number of visited states", "Visited States")
     """
     """
-    num_iterations = 1000
-    k_neighbours = 10
-    n_features = 7
-
-    y_pred_recommendation_function = recommendation_function(X_train, y_train, X_test, proba_df, num_iterations,
-                                                             k_neighbours, n_features)
-
-    print("MLP + recommendation function: Number of mislabeled points out of a total %d points : %d" % (
-        X_test.shape[0], (y_test != y_pred_recommendation_function).sum()))
-
-    score = metrics.accuracy_score(y_test, y_pred_recommendation_function)
-    print("MLP + recommendation function accuracy for :   %0.3f" % score)
-
-    class_report = metrics.classification_report(y_test, y_pred_recommendation_function, target_names=mlp_labels)
-
-    cm = metrics.confusion_matrix(y_test, y_pred_recommendation_function, labels=mlp_labels)
-
-    df_cm = pd.DataFrame(cm, columns=mlp_labels, index=mlp_labels)
-    df_cm.index.name = 'Actual'
-    df_cm.columns.name = 'Predicted'
-    plt.figure(figsize=(10, 7))
-    sns.set(font_scale=1.4)  # for label size
-    sns.heatmap(df_cm, cmap="Blues", annot=True, annot_kws={"size": 16}, fmt='g')
-    plt.title("Confusions Matrix of Neural Network + Recommendation Function for "+ str(num_iterations) + " iterations")
-    # sns.heatmap(cm, annot=mlp_labels, cmap='Blues')
-    plt.show()
-"""
-
-    """
     k nearest neighbour
-    
+    """
+
     proba_mlp = mlp.predict_proba(X_test_features)
     proba_df = pd.DataFrame(proba_mlp, columns=mlp_labels)
     proba_ranks = rank_heuristics(proba_df, use_ilp=False, reverse=True, column_no="No Heuristic", column_naive="Naive",
                                   column_state_lp="State Eq. LP", column_ext_lp="Ext. Eq. LP")
+
+    proba_rf_df = compute_probabilities_multi_label(proba_rf, multi_classes, multi_label_classifier)
     # num_iterations = [250, 500, 1000, 1500]
     # num_iterations = [1000, 1500]
-    num_iterations = [250, 500, 750]
-    # k_neighbours = [5, 10, 15]
-    k_neighbours = [5]
+    len_X_test = len(X_test)
+    #num_iterations = [0.5 * len_X_test, 0.75 * len_X_test, len_X_test]
+    num_iterations = [len_X_test]
+    k_neighbours = [5, 10, 15]
     # n_features = [math.floor(len_features/4), math.floor(len_features/2), math.floor(len_features * 0.75), len_features]
     n_features = len_features
-    fixed_k = False
-    probs_thresholds = [0.7, 0.8, 0.9, 1]
+    fixed_k = True
+    probs_thresholds = [0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
+    recommend_mlp = True
     # k nearest neighbour
-    if fixed_k:
-        y_recommendations = [[0 for k in range(len(k_neighbours))] for i in range(len(num_iterations))]
-        for i in range(len(num_iterations)):
-            for k in range(len(k_neighbours)):
-                # for n in n_features:
-                print(num_iterations[i], k_neighbours[k], n_features)
-                y_recommend, time_recommend = evaluate_recommendation_function(X_train, y_train, X_test, y_test, proba_df,
-                                                                               num_iterations[i], k_neighbours[k],
-                                                                               n_features, prob_threshold=0.9,
-                                                                               fixed_k=False)
-                y_recommendations[i][k] = [y_recommend, time_recommend]
-                print("Time to compute recommendation ", time_recommend)
+    for fixed_k in [True]:
+        for prob_thres in probs_thresholds:
+            if fixed_k:
+                #y_recommendations = [[0 for k in range(len(k_neighbours))] for i in range(len(num_iterations))]
+                for j in range(len(num_iterations)):
+                    for k in range(len(k_neighbours)):
+                        # for n in n_features:
+                        print(prob_thres, num_iterations[j], k_neighbours[k], n_features)
+                        for i in range(2):
+                            if recommend_mlp:
+                                print(multi_classes_classifier, "+ recommendation")
+                                y_recommend, time_recommend = evaluate_recommendation_function(X_train, y_train, X_test, y_test, proba_df,
+                                                                                               num_iterations[j], k_neighbours[k],
+                                                                                               n_features, prob_threshold=prob_thres,
+                                                                                               fixed_k=True, model_name=multi_classes_classifier)
 
-                # recommendation_function(X_train, y_train, X_test, y_test, proba_df, i, k, n_features)
+                            else:
+                                print(multi_label_classifier, "+ recommendation")
+                                y_recommend, time_recommend = evaluate_recommendation_function(X_train, y_train, X_test, y_test,
+                                                                                               proba_rf_df,
+                                                                                               num_iterations[j], k_neighbours[k],
+                                                                                               n_features, prob_threshold=prob_thres,
+                                                                                               fixed_k=True, model_name=multi_label_classifier)
 
-                # show statistics
-                y_pred_mlp_ls = y_recommendations[i][k][0]
-                recommend_time = y_recommendations[i][k][1]
+                            #y_recommendations[i][k] = [y_recommend, time_recommend]
+                            print("Time to compute recommendation ", time_recommend)
 
-                # model_idx = statistical_numbers.replace_label_by_time(y_pred_mlp_ls)
-                model_recommend_time = statistical_numbers.time_using_model(X_test, y_pred_mlp_ls)
-                print("Model recommend time: ", model_recommend_time)
-                count_same, count_better, count_worse = compare_recommendations(y_test, y_pred_mlp, y_pred_mlp_ls)
-                print("Recommendation function compared to mlp ", count_same, count_better, count_worse)
-                # model_timeouts, _ = statistical_numbers.timeouts_optimal_heuristics(X_test, timeout, y_pred_mlp_ls)
-                recommend_model_lps = statistical_numbers.lps_optimal_heuristics(X_test, y_pred_mlp_ls)
-                # model_visited_states = statistical_numbers.states_optimal_heuristics(X_test, True, model_idx)
-                # recommend_model_queued_states = statistical_numbers.states_optimal_heuristics(X_test, False, y_pred_mlp_ls)
+                            # recommendation_function(X_train, y_train, X_test, y_test, proba_df, i, k, n_features)
 
-                statistical_numbers.plot_multiple_bars_h_annot(optimal_time, [time_model, model_recommend_time],
-                                                               time_heuristics,
-                                                               "Time in seconds",
-                                                               "Computation Time MLP Model + Recommendation"
-                                                               "considering " + str(num_iterations[i]) + " iterations and"
-                                                               + str(k_neighbours[k]) + " neighbours")
-                # statistical_numbers.plot_multiple_bars_h_annot(optimal_queued_states,
-                #                      [model_queued_states, recommend_model_queued_states],
-                #                   queued_states_heuristic, "Number of queued states",
-                #                  "Queued States for recommendation considering " + str(
-                #                     num_iterations[
-                #                       i]) + " iterations and " + str(
-                #                  k_neighbours[k]) + " neighbours")
-                statistical_numbers.plot_multiple_bars_h_annot(optimal_lps, [model_lps, recommend_model_lps],
-                                                               lps_one_heuristic,
-                                                               "Number of solved lps",
-                                                               "Solved LPs for recommendation considering " + str(
-                                                                   num_iterations[i]
-                                                               ) + " iterations and " + str(
+                            # show statistics
+                            #y_pred_mlp_ls = y_recommendations[i][k][0]
+                            y_pred_mlp_ls = y_recommend
+                            #recommend_time = y_recommendations[i][k][1]
+                            recommend_time = time_recommend
 
-                                                               k_neighbours[k]) + " neighbours")
+                            # model_idx = statistical_numbers.replace_label_by_time(y_pred_mlp_ls)
+                            model_recommend_time = statistical_numbers.time_using_model(X_test, y_pred_mlp_ls)
+                            print("Model recommend time: ", model_recommend_time)
 
-    else:
-        for p in probs_thresholds:
-            print("bounding box with probability threshold", p)
-            y_recommend, time_recommend = evaluate_recommendation_function(X_train, y_train, X_test, y_test, proba_df,
-                                                                           len_x_test, k_neighbours[0],
-                                                                           n_features, p, fixed_k=False)
+                            model_recommend_idx, model_time, model_recommend_timeouts, model_recommend_lps, model_recommend_queued = statistical_numbers.return_model_metrics(X_test,
+                                                                                                                       y_pred_mlp_ls,
+                                                                                                                       timeout)
+                            if recommend_mlp:
+                                model_name = "MLP"
 
-            print("Time to compute recommendation ", time_recommend)
-    """
+                                count_same, count_better, count_worse = compare_recommendations(y_test_ls, y_pred_mlp,
+                                                                                                y_pred_mlp_ls)
+                                print("Recommendation function compared to mlp ", count_same, count_better, count_worse)
+
+                                recommend_mlp = False
+                            else:
+                                model_name = "RF"
+                                count_same, count_better, count_worse = compare_recommendations(y_test_ls,
+                                                                                                y_pred_single_label,
+                                                                                                y_recommend)
+                                print("Recommendation function compared to rf ", count_same, count_better, count_worse)
+                                recommend_mlp = True
+
+
+                            statistical_numbers.evaluate_time(X_test, [model_recommend_time, rf_time, mlp_time],
+                                                              [model_name+ str(num_iterations[j]) + " iterations and"
+                                                                           + str(k_neighbours[k]) + " neighbours", "RF", "MLP"], plot=False)
+                            statistical_numbers.evaluate_lps(X_test, [model_recommend_lps, rf_lps, mlp_lps], [model_name+ str(num_iterations[j]) + " iterations and"
+                                                                           + str(k_neighbours[k]) + " neighbours","RF", "MLP"], plot=False)
+
+                            statistical_numbers.evaluate_queued(X_test, [model_recommend_queued, rf_queued, mlp_queued],
+                                                                [model_name+ str(num_iterations[j]) + " iterations and"
+                                                                           + str(k_neighbours[k]) + " neighbours", "RF", "MLP"], plot=False)
+
+                            statistical_numbers.evaluate_timeouts(X_test, [model_recommend_timeouts, rf_timeouts, mlp_timeouts],
+                                                                  [model_name+ str(num_iterations[j]) + " iterations and"
+                                                                           + str(k_neighbours[k]) + " neighbours", "RF", "MLP"], timeout, plot=False)
+
+
+
+            else:
+                print("bounding box with probability threshold", prob_thres)
+
+                for i in range(2):
+                    if recommend_mlp:
+                        print(multi_classes_classifier,"+ recommendation")
+                        y_recommend, time_recommend = evaluate_recommendation_function(X_train, y_train, X_test, y_test, proba_df,
+                                                                               X_test.shape[0], k_neighbours[0],
+                                                                               n_features, prob_thres, fixed_k=False, model_name=multi_classes_classifier)
+                    else:
+                        print(multi_label_classifier, "+ recommendation")
+                        y_recommend, time_recommend = evaluate_recommendation_function(X_train, y_train, X_test, y_test,
+                                                                                       proba_rf_df,
+                                                                                       X_test.shape[0], k_neighbours[0],
+                                                                                       n_features, prob_thres,
+                                                                                       fixed_k=False, model_name=multi_label_classifier)
+
+                    print("Time to compute recommendation ", time_recommend)
+
+                    model_recommend_time = statistical_numbers.time_using_model(X_test, y_recommend)
+                    print("Model recommend time: ", model_recommend_time)
+
+                    model_recommend_idx, model_time, model_recommend_timeouts, model_recommend_lps, model_recommend_queued = statistical_numbers.return_model_metrics(
+                        X_test,
+                        y_pred_mlp_ls,
+                        timeout)
+
+                    if recommend_mlp:
+                        model_name = "MLP"
+                        count_same, count_better, count_worse = compare_recommendations(y_test_ls, y_pred_mlp, y_recommend)
+                        print("Recommendation function compared to mlp ", count_same, count_better, count_worse)
+
+                        recommend_mlp = False
+                    else:
+                        model_name = "RF"
+                        count_same, count_better, count_worse = compare_recommendations(y_test_ls, y_pred_single_label, y_recommend)
+                        print("Recommendation function compared to rf ", count_same, count_better, count_worse)
+                        recommend_mlp = True
+
+                    statistical_numbers.evaluate_time(X_test, [model_recommend_time, rf_time, mlp_time],
+                                                      [model_name + " bounding box", "RF", "MLP"], plot=False)
+                    statistical_numbers.evaluate_lps(X_test, [model_recommend_lps, rf_lps, mlp_lps],
+                                                     [model_name + " bounding box", "RF", "MLP"], plot=False)
+
+                    statistical_numbers.evaluate_queued(X_test, [model_recommend_queued, rf_queued, mlp_queued],
+                                                        [model_name + " bounding box", "RF", "MLP"], plot=False)
+
+                    statistical_numbers.evaluate_timeouts(X_test, [model_recommend_timeouts, rf_timeouts, mlp_timeouts],
+                                                          [model_name + " bounding box", "RF", "MLP"], timeout, plot=False)
+
