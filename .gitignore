@@ -1,3 +1,6 @@
+*.pkl
+*.xes
+
 /.idea
 .vscode/
 
