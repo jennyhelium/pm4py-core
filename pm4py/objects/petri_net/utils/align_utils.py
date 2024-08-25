@@ -481,7 +481,7 @@ def compute_extended_state_equation_res(res_vec, y_indices, num_y_variables, len
         res += curr_cost_vec
     return res
 
-def __compute_exact_extended_state_equation_antons_setup(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
+def __compute_exact_extended_state_equation_a_setup(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
                                                          marking, fin_vec, variant, trace_division, ilp=False, use_cvxopt=False,
                                                          strict=True,
                                                          k=1):
