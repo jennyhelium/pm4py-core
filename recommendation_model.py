@@ -621,6 +621,7 @@ def get_features_data(data):
     # start_features = time.time()
     time_features = 0
     time_model_features = 0
+    time_model_features_all = 0
 
     dict_times_features_ls = []
 
@@ -638,11 +639,13 @@ def get_features_data(data):
 
         if pn_id not in dict_pn_id:
             model_features, curr_time_model_features = get_model_features(pn, im, fm)
-            dict_pn_id[pn_id] = model_features
+            dict_pn_id[pn_id] = [model_features, curr_time_model_features]
             time_model_features += curr_time_model_features
+            time_model_features_all += curr_time_model_features
 
         else:
-            model_features = dict_pn_id[pn_id]
+            model_features = dict_pn_id[pn_id][0]
+            time_model_features_all += dict_pn_id[pn_id][1]
 
         # compute other features
         time_start = time.time()
@@ -680,7 +683,8 @@ def get_features_data(data):
     print("Time to compute model features: ", time_model_features)
 
     print("Time to compute other features: ", time_features)
-    print("Time to compute all features: ", time_features + time_model_features)
+    print("Time to compute all features, model features once: ", time_features + time_model_features)
+    print("Time to compute all features, model features always", time_features + time_model_features_all)
 
     # features_data.append(feature)
 
@@ -705,15 +709,15 @@ def get_features_data(data):
 
     # scale features
     #scaler = MinMaxScaler()
-    #scaler = StandardScaler()
-    scaler = MaxAbsScaler()
+    scaler = StandardScaler()
+    #scaler = MaxAbsScaler()
     scaled_features = scaler.fit_transform(features_df)
     scaled_df = pd.DataFrame(scaled_features, columns=features_df.columns)
 
     result = data.join(scaled_df)
 
     print(result)
-    return result, len_features, time_features + time_model_features
+    return result, len_features, time_features + time_model_features, time_features + time_model_features_all
 
 
 def get_train_test_set(data, ratio=0.8, multi_label=False):
@@ -1340,7 +1344,7 @@ if __name__ == "__main__":
     data_labeled = label_data(data)
     data_sampled = sample_data(data_labeled, drop_frac=0.95)
     data_ranked = rank_heuristics(data_sampled, use_ilp=False)
-    data_features, len_features, time_compute_feature = get_features_data(data_ranked)
+    data_features, len_features, time_compute_feature, _ = get_features_data(data_ranked)
 
     # print(resource.getrlimit(resource.RLIMIT_STACK))
     # print(sys.getrecursionlimit())
@@ -1361,7 +1365,7 @@ if __name__ == "__main__":
     data_multi_labeled = multi_label_data(data_features)
 
     X_train_raw, y_train_raw, X_test_raw, y_test_raw = get_train_test_set(data_sampled)
-    data_features_X, len_features_X, time_compute_feature_X = get_features_data(X_test_raw)
+    data_features_X, len_features_X, time_compute_feature_X, time_compute_feature_always_model_X = get_features_data(X_test_raw)
 
     X_train, y_train, X_test, y_test = get_train_test_set(data_features)
     # drop_i = X_train[X_train['Ext. LP Rank'] == 1].index
@@ -1390,8 +1394,8 @@ if __name__ == "__main__":
 
     multi_classes = mlb.classes_
 
-    #multi_label_classifier = "RF multi-label"
-    multi_label_classifier = "MLP multi-label"
+    multi_label_classifier = "RF"
+    #multi_label_classifier = "MLP multi-label"
     if multi_label_classifier == "MLP multi-label":
         clf = MLPClassifier(solver='adam', hidden_layer_sizes=(len_features, len_features, 10, 4),
                             learning_rate_init=0.001,
@@ -1423,8 +1427,8 @@ if __name__ == "__main__":
 
     # NN
     #multi_classes_classifier = "RF multi-class"
-    multi_classes_classifier = "MLP multi-class"
-    if multi_classes_classifier == "MLP multi-class":
+    multi_classes_classifier = "MLP"
+    if multi_classes_classifier in "MLP multi-class":
         # start_train_mlp = time.time()
         mlp = MLPClassifier(solver='adam', hidden_layer_sizes=(len_features, len_features, 10, 4),
                             learning_rate_init=0.001,
@@ -1502,19 +1506,19 @@ if __name__ == "__main__":
                                                                                                     timeout)
     plt.rcParams.update(plt.rcParamsDefault)
     plt.rcParams["figure.figsize"] = (15, 10)
-    statistical_numbers.evaluate_time_only_heuristics(X_test, True)
+    statistical_numbers.evaluate_time_only_heuristics(X_test, False)
 
     time_compute_feature_X = 0
     statistical_numbers.evaluate_time(X_test, [rf_time, mlp_time], [multi_label_classifier, multi_classes_classifier],
-                                     time_compute_feature_X, use_features=True, use_ilp=False, plot=True)
+                                     time_compute_feature_always_model_X, use_features=True, use_ilp=False, plot=True)
 
     statistical_numbers.evaluate_lps(X_test, [rf_lps, mlp_lps], [multi_label_classifier, multi_classes_classifier],
-                                     use_ilp=False, plot=True)
+                                     use_ilp=False, plot=False)
 
     statistical_numbers.evaluate_queued(X_test, [rf_queued, mlp_queued],
-                                       [multi_label_classifier, multi_classes_classifier], use_ilp=False, plot=True)
+                                       [multi_label_classifier, multi_classes_classifier], use_ilp=False, plot=False)
 
-    statistical_numbers.evaluate_timeouts(X_test, [rf_timeouts, mlp_timeouts], [multi_label_classifier, multi_classes_classifier], timeout)
+    statistical_numbers.evaluate_timeouts(X_test, [rf_timeouts, mlp_timeouts], [multi_label_classifier, multi_classes_classifier], timeout, plot=False)
     print("Time with", multi_classes_classifier, mlp_time)
     print("Time with", multi_label_classifier, rf_time)
 
@@ -1589,7 +1593,7 @@ if __name__ == "__main__":
     """
     k nearest neighbour
     """
-
+    """
     proba_mlp = mlp.predict_proba(X_test_features)
     proba_df = pd.DataFrame(proba_mlp, columns=mlp_labels)
     proba_ranks = rank_heuristics(proba_df, use_ilp=False, reverse=True, column_no="No Heuristic", column_naive="Naive",
@@ -1734,3 +1738,4 @@ if __name__ == "__main__":
                     statistical_numbers.evaluate_timeouts(X_test, [model_recommend_timeouts, rf_timeouts, mlp_timeouts],
                                                           [model_name + " bounding box", "RF", "MLP"], timeout, plot=False)
 
+    """
